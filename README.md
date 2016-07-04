@@ -1,5 +1,5 @@
 # rosbag_annotator
-
+dimitris
 This program will help you annotate a rosbag file by producing a result file with timestamps of the annotated events.
 Currently works only for Image and CompressedImage topics 
 
