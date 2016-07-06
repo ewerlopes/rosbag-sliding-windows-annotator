@@ -33,6 +33,7 @@ mouse_loc = None
 prev_mouse_loc = None
 start_rect = 2*[None]
 
+
 def parse_arguments():
 	parser = argparse.ArgumentParser(
 		prog='PROG',
@@ -184,9 +185,10 @@ def play_bag_file(bag_file, csv_file):
 		#Display image
 		cv2.imshow("Image", cv_image)
 		keyPressed(time_buff, file_obj)
-
+        
+        
 		#If the image is paused
-		while(pause):
+        while(pause):
 			cv_image_pause = image_buff[counter].copy()
 			if start_rect[0] != None and start_rect[1] != None:
 				box_buff[counter] = (start_rect[0][0], start_rect[0][1], start_rect[1][0] - start_rect[0][0], start_rect[1][1]- start_rect[0][1])
@@ -280,7 +282,7 @@ if __name__ =='__main__':
 	output_file = args.output_file
 	input_topic = args.visual_topic
 	append = args.append
-	
+	master = Tk()
 	#Create results file
 	if(output_file is None):
 		feature_file = bag_file.split(".")[0].split("/")[-1] + "_RES"
