@@ -41,7 +41,9 @@
 ##
 #############################################################################
   
-  
+from PyQt5.QtMultimedia import (QAbstractVideoBuffer, QMediaContent,
+       QMediaMetaData, QMediaPlayer, QMediaPlaylist, QVideoFrame, QVideoProbe)
+from PyQt5.QtMultimediaWidgets import QVideoWidget  
 from PyQt5.QtCore import QDir, Qt
 from PyQt5.QtGui import QImage, QPainter, QPalette, QPixmap
 from PyQt5.QtWidgets import (QAction, QApplication, QFileDialog, QLabel,
@@ -72,14 +74,17 @@ class ImageViewer(QMainWindow):
         self.setWindowTitle("Image Viewer")
         self.resize(642, 482)
         
-    def open_image(self,image,height,width):
+    def open_image(self,image,frames,height,width):
         #print "xaxa "
         #fileName, _ = QFileDialog.getOpenFileName(self, "Open File",
         #        QDir.currentPath())
+        
         if image.any():
             bytesPerLine = 3 * width
             rec_image = QImage(image, width, height, bytesPerLine, QImage.Format_RGB888)
-                        
+            for i in range(frames):
+                rec_image = QImage(image, width, height, bytesPerLine, QImage.Format_RGB888)
+                
             if not rec_image.size:
                 QMessageBox.information(self, "Image Viewer",
                         "Cannot load %s." % rec_image)

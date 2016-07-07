@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 #import pdb
+#import time
 import numpy as np
 import csv
 import yaml
@@ -13,8 +14,9 @@ import rospy
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge, CvBridgeError
-from pyqt import * #ImageViewer as imgV
+#from pyqt import * #ImageViewer as imgV
 #from pyqt import ImageViewer as imgV
+from videoplayer import *
 
 global mouse_pressed
 global mouse_loc
@@ -158,7 +160,8 @@ def play_bag_file(bag_file, csv_file):
     
     #Loop through the image buffer
     while counter in range(0, len(image_buff) - 1):
-        cv_image = image_buff[counter].copy()        
+        cv_image = image_buff[counter].copy()     
+        print counter
         try:
             (x, y, width, height) = box_buff[counter]
             cv2.rectangle(cv_image, (x, y), ((x + width), (y + height)), (255, 0, 0), 1)    
@@ -166,10 +169,17 @@ def play_bag_file(bag_file, csv_file):
             pass
         #Display image
         #Add some shit here
-        last_frame =  np.asarray(image_buff[counter])
-        h,w,c = last_frame.shape
+        
+        video_buff =  np.asarray(image_buff)
+        f,h,w,c = video_buff.shape
+        #print video_buff.shape
         #last_frame = cv2.fromarray(last_frame)
-        imageViewer.open_image(last_frame,h,w)
+        #imageViewer.open_image(last_frame,h,w)
+        #Pass video to Qt
+        player.open_video(video_buff)#,f,h,w)
+        
+        #videoplayer.open(video_buff,f,h,w)
+        #time.sleep(int(10))
         #cv2.imshow("Imaage", cv_image)
         #print counter
         (counter, framerate, pause, events) = keyPressed(time_buff, events, counter, framerate, pause)
@@ -266,9 +276,12 @@ if __name__ =='__main__':
     input_topic = args.visual_topic
     
     #Initialize Pyqt Window
+    #app = QApplication(sys.argv)
     app = QApplication(sys.argv)
-    imageViewer = ImageViewer()
-    imageViewer.show()
+    #imageViewer = ImageViewer()
+    #imageViewer.show()
+    player = Player(sys.argv)
+    player.show()
     
     #Open bag and get framerate    
     events = play_bag_file(bag_file, csv_file)
