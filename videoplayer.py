@@ -48,6 +48,89 @@ from PyQt5.QtMultimedia import *
 from PyQt5.QtMultimediaWidgets import *
 from PyQt5.QtWidgets import *
 
+#Add QAbstractVideoSurface
+class VideoWidgetSurface(QAbstractVideoSurface):
+    
+    def __init__(self, widget, parent=None):
+        super(VideoWidgetSurface, self).__init__(parent)
+        self.widget = widget
+        self.imageFormat = QImage.Format_Invalid
+    
+    def supportedPixelFormats(self, handleType=QAbstractVideoBuffer.NoHandle):
+        formats = [QVideoFrame.PixelFormat()]
+        if handleType == QAbstractVideoBuffer.NoHandle:
+            for f in QVideoFrame.Format_RGB24:
+                formats.append(f)
+        return formats
+    
+    def isFormatSupported(self, _format):
+        imageFormat = QVideoFrame.imageFormatFromPixelFormat(_format.pixelFormat())
+        size = _format.frameSize()
+        _bool = False
+        if (imageFormat != QImage.Format_Invalid and not size.isEmpty() and _format.handleType() == QAbstractVideoBuffer.NoHandle):
+            _bool = True
+        return _bool
+    
+    def start(self, _format):
+        imageFormat = QVideoFrame.imageFormatFromPixelFormat(_format.pixelFormat())
+        size = _format.frameSize()
+        if (imageFormat != QImage.Format_Invalid and not size.isEmpty()):
+            self.imageFormat = imageFormat
+            self.imageSize = size
+            self.sourceRect = _format.viewport()
+            QAbstractVideoSurface.start(self, _format)
+            self.widget.updateGeometry()
+            self.updateVideoRect()
+            return True
+        else:
+            return False
+    
+    def stop(self):
+        self.currentFrame = QVideoFrame()
+        self.targetRect = QRect()
+        QAbstractVideoSurface.stop(self)
+        self.widget.update()
+    
+    def present(self, frame):
+        if (self.surfaceFormat().pixelFormat() != frame.pixelFormat() or self.surfaceFormat().frameSize() != frame.size()): 
+            self.setError(QAbstractVideoSurface.IncorrectFormatError)
+            self.stop()
+            return False
+        else:
+            self.currentFrame = frame
+            self.widget.repaint(self.targetRect)
+            return True
+        
+    def videoRect(self):
+        return self.targetRect
+        
+    def updateVideoRect(self):
+        size = self.surfaceFormat().sizeHint()
+        size.scale(self.widget.size().boundedTo(size), Qt.KeepAspectRatio)
+        self.targetRect = QRect(QPoint(0, 0), size);
+        self.targetRect.moveCenter(self.widget.rect().center())
+        
+    def paint(self, painter):
+        if (self.currentFrame.map(QAbstractVideoBuffer.ReadOnly)):
+            oldTransform = painter.transform()
+        
+        if (self.surfaceFormat().scanLineDirection() == QVideoSurfaceFormat.BottomToTop):
+            painter.scale(1, -1);
+            painter.translate(0, -self.widget.height())
+        
+        image = QImage(self.currentFrame.bits(),
+                    self.currentFrame.width(),
+                    self.currentFrame.height(),
+                    self.currentFrame.bytesPerLine(),
+                    self.imageFormat
+        )
+        
+        painter.drawImage(self.targetRect, image, self.sourceRect)
+        painter.setTransform(oldTransform)
+        
+        self.currentFrame.unmap()
+    
+
 class VideoWidget(QVideoWidget):
 
     def __init__(self, parent=None):
@@ -499,23 +582,23 @@ class Player(QWidget):
                                                                                                                                                                                                                                                                 #self.addToPlaylist(playlist)
         
     #Changed to pass the video from ros 
-    def open_video(self,video,frames,height,width,channels):#video,frames,height,width):        
+    def open_video(self,video):#,frames,height,width,channels):#video,frames,height,width):        
         
         #video_frame = HandleType(video)#QVideoFrame(video)
         #QAbstractPlanarVideoBuffer(NoHandle)
         #video_frame = video[0,:,:,:]
         #video_frame = video.Qimage(height,width)
         print 'Mpike edw' 
-        '''
-        video_size = frames * height * width * channels 
-        pdb.set_trace()
+        
+        #video_size = frames * height * width * channels 
+        #pdb.set_trace()
         if video.map(QAbstractVideoBuffer.ReadOnly):
-        #    pixelFormat = video.pixelFormat()
+            pixelFormat = video.pixelFormat()
         
         #3 channels (RGB)
         #bytesPerLine = 3;  
         #print type(video)
-        #video.map(QAbstractVideoBuffer.ReadOnly)
+        video.map(QAbstractVideoBuffer.ReadOnly)
         #= QAbstractVideoBuffer(ReadOnly,)
             #pdb.set_trace()
             pixelFormat = QVideoFrame(video.map(QAbstractVideoBuffer.ReadOnly),video_size,Format_BGR24)    
@@ -534,7 +617,7 @@ class Player(QWidget):
                 "Cannot load %s." % rec_image)
             return
         '''    
-        
+    '''    
     def addToPlaylist(self, fileNames):
         for name in fileNames:
             fileInfo = QFileInfo(name)
@@ -548,7 +631,7 @@ class Player(QWidget):
                 url = QUrl(name)
                 if url.isValid():
                     self.playlist.addMedia(QMediaContent(url))
-    
+    '''
     
     def durationChanged(self, duration):
         duration /= 1000
