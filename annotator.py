@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-#import pdb
+import pdb
 #import time
 import numpy as np
 import csv
@@ -40,7 +40,7 @@ def parse_arguments():
         \ta: Go back 1 frame
         \td: Go forward 1 frame
         \tz: Writes the timestamp on the result file with id 4
-        \te: Writes the timestamp on the result file with id 3
+        \te: Writes the timestamp on the result file with id 3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
         \tq: Writes the timestamp on the result file with id 2
         \tw: Writes the timestamp on the result file with id 1
         \ts: Writes the timestamp on the result file with id 0
@@ -154,10 +154,15 @@ def play_bag_file(bag_file, csv_file):
     counter = 0
     pause  = False
     events = []
-    
+    print 'reached msg'
     #Debug stuff
     #print type(image_buff)
+    video_buff =  np.asarray(image_buff)
+    np.ascontiguousarray(video_buff, dtype='uint8')
+    video_buff = video_buff.tolist()
     
+    #player.open_video(video_buff,f,h,w,c)
+    a = raw_input("hallo   ")
     #Loop through the image buffer
     while counter in range(0, len(image_buff) - 1):
         cv_image = image_buff[counter].copy()     
@@ -167,17 +172,27 @@ def play_bag_file(bag_file, csv_file):
             cv2.rectangle(cv_image, (x, y), ((x + width), (y + height)), (255, 0, 0), 1)    
         except Exception as e:
             pass
+        print 'edw'
         #Display image
         #Add some shit here
-        
-        video_buff =  np.asarray(image_buff)
-        f,h,w,c = video_buff.shape
+        #video_buff =  np.asarray(image_buff)
+        #print video_buff
+        #video_buff.astype('uint8','C')
+        #print video_buff
+        #print np.dtype(video_buff.astype('uint8','C'))
+        #f,h,w,c = video_buff.shape
         #print video_buff.shape
         #last_frame = cv2.fromarray(last_frame)
         #imageViewer.open_image(last_frame,h,w)
         #Pass video to Qt
-        player.open_video(video_buff)#,f,h,w)
-        
+        #video_buff = np.astype(video_buff, dtype=np.uint8)
+        #np.ascontiguousarray(video_buff, dtype='uint8')
+        #changed_buff = video_buff.astype('uint8')
+        #print type(changed_buff)
+        #data_u8 = .astype('uint8')
+        #video_buff = video_buff.tolist()
+        #player.open_video(video_buff,f,h,w,c)
+        #player.open_video(image_buff,f,h,w,c)
         #videoplayer.open(video_buff,f,h,w)
         #time.sleep(int(10))
         #cv2.imshow("Imaage", cv_image)
@@ -280,7 +295,9 @@ if __name__ =='__main__':
     app = QApplication(sys.argv)
     #imageViewer = ImageViewer()
     #imageViewer.show()
-    player = Player(sys.argv)
+    #print 'prin somethin'
+    player = Player()
+    #print 'something'
     player.show()
     
     #Open bag and get framerate    

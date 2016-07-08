@@ -41,18 +41,12 @@
 ##
 #############################################################################
 
-
-from PyQt5.QtCore import (pyqtSignal, pyqtSlot, Q_ARG, QAbstractItemModel,
-        QFileInfo, qFuzzyCompare, QMetaObject, QModelIndex, QObject, Qt,
-        QThread, QTime, QUrl)
-from PyQt5.QtGui import QColor, qGray, QImage, QPainter, QPalette
-from PyQt5.QtMultimedia import (QAbstractVideoBuffer, QMediaContent,
-        QMediaMetaData, QMediaPlayer, QMediaPlaylist, QVideoFrame, QVideoProbe)
-from PyQt5.QtMultimediaWidgets import QVideoWidget
-from PyQt5.QtWidgets import (QApplication, QComboBox, QDialog, QFileDialog,
-        QFormLayout, QHBoxLayout, QLabel, QListView, QMessageBox, QPushButton,
-        QSizePolicy, QSlider, QStyle, QToolButton, QVBoxLayout, QWidget)
-
+#import pdb
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtMultimedia import *
+from PyQt5.QtMultimediaWidgets import *
+from PyQt5.QtWidgets import *
 
 class VideoWidget(QVideoWidget):
 
@@ -81,7 +75,7 @@ class VideoWidget(QVideoWidget):
         self.setFullScreen(not self.isFullScreen())
         event.accept()
 
-'''
+
 class PlaylistModel(QAbstractItemModel):
 
     Title, ColumnCount = range(2)
@@ -156,7 +150,7 @@ class PlaylistModel(QAbstractItemModel):
         self.dataChanged.emit(self.index(start, 0),
                 self.index(end, self.ColumnCount))
 
-'''
+
 
 class PlayerControls(QWidget):
 
@@ -278,9 +272,9 @@ class PlayerControls(QWidget):
 
 
 class FrameProcessor(QObject):
-
+    
     #histogramReady = pyqtSignal(list)
-
+    
     @pyqtSlot(QVideoFrame, int)
     def processFrame(self, frame):
         #histogram = [0.0] * levels
@@ -308,7 +302,7 @@ class FrameProcessor(QObject):
             if pixelFormat != QVideoFrame.Format_BGR24:
                 print 'Not RGB_24 format'
             frame.unmap()    
-        '''        
+            '''        
             # Find the maximum value.
             maxValue = 0.0
             for value in histogram:
@@ -502,24 +496,45 @@ class Player(QWidget):
 
         self.metaDataChanged()
 
-        #self.addToPlaylist(playlist)
+                                                                                                                                                                                                                                                                #self.addToPlaylist(playlist)
         
     #Changed to pass the video from ros 
-    def open_video(self,video):#video,frames,height,width):        
-         if video.map(QAbstractVideoBuffer.ReadOnly):
-            pixelFormat = video.pixelFormat()
-            
-         
+    def open_video(self,video,frames,height,width,channels):#video,frames,height,width):        
+        
+        #video_frame = HandleType(video)#QVideoFrame(video)
+        #QAbstractPlanarVideoBuffer(NoHandle)
+        #video_frame = video[0,:,:,:]
+        #video_frame = video.Qimage(height,width)
+        print 'Mpike edw' 
+        '''
+        video_size = frames * height * width * channels 
+        pdb.set_trace()
+        if video.map(QAbstractVideoBuffer.ReadOnly):
+        #    pixelFormat = video.pixelFormat()
+        
+        #3 channels (RGB)
+        #bytesPerLine = 3;  
+        #print type(video)
+        #video.map(QAbstractVideoBuffer.ReadOnly)
+        #= QAbstractVideoBuffer(ReadOnly,)
+            #pdb.set_trace()
+            pixelFormat = QVideoFrame(video.map(QAbstractVideoBuffer.ReadOnly),video_size,Format_BGR24)    
+        
+        
+            video.unmap()
+        '''    
+        #video.map(QAbstractVideoBuffer.ReadOnly) 
          #if video.any():
             #bytesPerLine = 3 * width
             #rec_image = QImage(image, width, height, bytesPerLine, QImage.Format_RGB888)
             #rec_image = QImage(image, width, height, bytesPerLine, QImage.Format_RGB888)
-                
-            if not rec_image.size:
-                QMessageBox.information(self, "Image Viewer",
-                        "Cannot load %s." % rec_image)
-                return
-    '''
+        '''        
+        if not rec_image.size:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+            QMessageBox.information(self, "Image Viewer",
+                "Cannot load %s." % rec_image)
+            return
+        '''    
+        
     def addToPlaylist(self, fileNames):
         for name in fileNames:
             fileInfo = QFileInfo(name)
@@ -533,7 +548,7 @@ class Player(QWidget):
                 url = QUrl(name)
                 if url.isValid():
                     self.playlist.addMedia(QMediaContent(url))
-    '''
+    
     
     def durationChanged(self, duration):
         duration /= 1000
@@ -567,11 +582,11 @@ class Player(QWidget):
         if index.isValid():
             self.playlist.setCurrentIndex(index.row())
             self.player.play()
-    '''
+    
     def playlistPositionChanged(self, position):
         self.playlistView.setCurrentIndex(
                 self.playlistModel.index(position, 0))
-    '''
+    
     def seek(self, seconds):
         self.player.setPosition(seconds * 1000)
 
@@ -698,7 +713,7 @@ class Player(QWidget):
 
         self.colorDialog.show()
 
-'''
+
 if __name__ == '__main__':
 
     import sys
@@ -708,5 +723,4 @@ if __name__ == '__main__':
     player = Player(sys.argv[1:])
     player.show()
 
-sys.exit(app.exec_())
-'''
+    sys.exit(app.exec_())
