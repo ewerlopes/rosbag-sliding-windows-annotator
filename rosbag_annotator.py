@@ -66,7 +66,7 @@ from PyQt5.QtWidgets import * #(QApplication, QFileDialog, QHBoxLayout, QLabel,
 #global end_point #= False
 start_point = False
 end_point = False
-
+global pix
 out = QByteArray()
 buf = QBuffer(out)
 
@@ -139,13 +139,15 @@ class VideoPlayer(QWidget):
     def __init__(self, parent=None):
         super(VideoPlayer, self).__init__(parent)
 
-
+        global pix
 
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.VideoSurface)
         #add duration
         self.duration = 0
 
         videoWidget = QVideoWidget()
+        #Add this line
+        self.videoGraph = QGraphicsView(videoWidget)
 
         openButton = QPushButton("Open...")
         openButton.clicked.connect(self.openFile)
@@ -185,6 +187,11 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.positionChanged.connect(self.positionChanged)
         self.mediaPlayer.durationChanged.connect(self.durationChanged)
         self.mediaPlayer.error.connect(self.handleError)
+
+        #Test ideas
+        #pix = QPixmap(640,480)
+        #paint_engine = VideoPlayer.paintEngine()
+        #self.paintRect = QPaintEvent(self.mediaPlayer)
 
     def openFile(self):
         '''
@@ -284,25 +291,55 @@ class VideoPlayer(QWidget):
         global start_point
         global end_point
         #print 'ekei'
+        global pix
+        #painter = QPainter()
         if QMouseEvent.button(event) == Qt.LeftButton:#QEvent.MouseButtonPress:
             #print 'edw'
             if start_point is True and end_point is True:
                 start_point = False
                 end_point = False
-                QRect()
+                #QPainter.eraseRect(rect)
                 pass
                 #QPointF.pos1 =QMouseEvent.pos()
                 #draw_rect()
             elif start_point is False:
                 #QPointF.pos1 =QMouseEvent.pos()
-                QPointF.pos1 = QMouseEvent.pos(event) #QEvent.MouseButtonPress.pos()
+                QPoint.pos1 = QMouseEvent.pos(event) #QEvent.MouseButtonPress.pos()
                 start_point = True
                 print start_point
             elif end_point is False:
-                QPointF.pos2 = QMouseEvent.pos(event) # QEvent.MouseButtonPress.pos()
+                QPoint.pos2 = QMouseEvent.pos(event) # QEvent.MouseButtonPress.pos()
                 end_point = True
-                print QPointF.pos1
-                QRect(QPointF.pos1,QPointF.pos2)
+                #print end_point
+                rect = QRect(QPoint.pos1,QPoint.pos2)
+                #print type(QPointF.pos1),QPointF.pos2
+                player.paintEvent(rect)
+                #painter.drawRect(rect)
+
+    #def QGraphicsView():
+     #   pass
+
+    '''
+    def paintRect(self,rect):
+        painter = QPainter(self)
+        #global videoGraph
+        #painter = QPainter(player.videoGraph)
+        painter.begin(self)
+        painter.setRenderHint(QPainter.Antialiasing);
+        painter.setPen(QColor(255, 0, 0, 255))
+        QPaintEvent(rect)
+        pass
+    '''
+
+    def paintEvent(self,event):
+        painter = QPainter(self)
+        #global videoGraph
+        #painter = QPainter(player.videoGraph)
+        painter.begin(self)
+        painter.setRenderHint(QPainter.Antialiasing);
+        painter.setPen(QColor(255, 0, 0, 255))
+        QPaintEvent(event)
+
 
     '''
     def draw_rect(self,pos1,pos2):
@@ -317,7 +354,7 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     player = VideoPlayer()
-    player.resize(320, 240)
+    player.resize(640, 480)
     player.show()
 
     sys.exit(app.exec_())
