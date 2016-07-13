@@ -149,6 +149,8 @@ class VideoPlayer(QWidget):
         #Add this line
         self.videoGraph = QGraphicsView(videoWidget)
 
+
+
         openButton = QPushButton("Open...")
         openButton.clicked.connect(self.openFile)
 
@@ -191,6 +193,8 @@ class VideoPlayer(QWidget):
         #Test ideas
         #pix = QPixmap(640,480)
         #paint_engine = VideoPlayer.paintEngine()
+        self.probe = QVideoProbe()
+        self.probe.setSource(self.mediaPlayer)
         #self.paintRect = QPaintEvent(self.mediaPlayer)
 
     def openFile(self):
@@ -285,7 +289,7 @@ class VideoPlayer(QWidget):
     def handleError(self):
         self.playButton.setEnabled(False)
         self.errorLabel.setText("Error: " + self.mediaPlayer.errorString())
-
+    '''
     #Mouse callback handling for Boxes
     def mousePressEvent(self,event):
         global start_point
@@ -304,7 +308,7 @@ class VideoPlayer(QWidget):
                 #draw_rect()
             elif start_point is False:
                 #QPointF.pos1 =QMouseEvent.pos()
-                QPoint.pos1 = QMouseEvent.pos(event) #QEvent.MouseButtonPress.pos()
+                QPoint.pos1 = QMouseEvent.pos(event)
                 start_point = True
                 print start_point
             elif end_point is False:
@@ -313,9 +317,11 @@ class VideoPlayer(QWidget):
                 #print end_point
                 rect = QRect(QPoint.pos1,QPoint.pos2)
                 #print type(QPointF.pos1),QPointF.pos2
-                player.paintEvent(rect)
+                #player.paintEvent(rect)
                 #painter.drawRect(rect)
-
+                #QPaintEvent(rect)
+                self.paintEvent(rect)
+    '''
     #def QGraphicsView():
      #   pass
 
@@ -332,15 +338,24 @@ class VideoPlayer(QWidget):
     '''
 
     def paintEvent(self,event):
+        global start_point
+        global end_point
         painter = QPainter(self)
         #global videoGraph
-        #painter = QPainter(player.videoGraph)
+
+        painter = QPainter(player.videoGraph)
         painter.begin(self)
         painter.setRenderHint(QPainter.Antialiasing);
         painter.setPen(QColor(255, 0, 0, 255))
+        painter.drawRect(event)
         QPaintEvent(event)
 
 
+    '''
+    def paintEvent(event):
+        painter = QPainter(self)
+        pass
+    '''
     '''
     def draw_rect(self,pos1,pos2):
         QRect(pos1,pos2)
