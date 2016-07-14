@@ -66,7 +66,7 @@ from PyQt5.QtWidgets import * #(QApplication, QFileDialog, QHBoxLayout, QLabel,
 #global end_point #= False
 start_point = False
 end_point = False
-global pix
+global rect
 out = QByteArray()
 buf = QBuffer(out)
 
@@ -139,7 +139,7 @@ class VideoPlayer(QWidget):
     def __init__(self, parent=None):
         super(VideoPlayer, self).__init__(parent)
 
-        global pix
+        #global pix
 
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.VideoSurface)
         #add duration
@@ -149,7 +149,7 @@ class VideoPlayer(QWidget):
         #Add this line
         self.videoGraph = QGraphicsView(videoWidget)
 
-
+        scene = QGraphicsScene
 
         openButton = QPushButton("Open...")
         openButton.clicked.connect(self.openFile)
@@ -289,13 +289,20 @@ class VideoPlayer(QWidget):
     def handleError(self):
         self.playButton.setEnabled(False)
         self.errorLabel.setText("Error: " + self.mediaPlayer.errorString())
-    '''
+
+    def sendEvent(QVideoWidget,event):
+
+        pass
+
+
+
+
     #Mouse callback handling for Boxes
     def mousePressEvent(self,event):
         global start_point
         global end_point
         #print 'ekei'
-        global pix
+        global rect
         #painter = QPainter()
         if QMouseEvent.button(event) == Qt.LeftButton:#QEvent.MouseButtonPress:
             #print 'edw'
@@ -313,43 +320,49 @@ class VideoPlayer(QWidget):
                 print start_point
             elif end_point is False:
                 QPoint.pos2 = QMouseEvent.pos(event) # QEvent.MouseButtonPress.pos()
+                print QPoint.pos2
                 end_point = True
                 #print end_point
                 rect = QRect(QPoint.pos1,QPoint.pos2)
+                print rect
                 #print type(QPointF.pos1),QPointF.pos2
                 #player.paintEvent(rect)
                 #painter.drawRect(rect)
                 #QPaintEvent(rect)
-                self.paintEvent(rect)
-    '''
+                #self.paintRect(rect,event)
+                self.update()
     #def QGraphicsView():
      #   pass
 
     '''
-    def paintRect(self,rect):
+    def paintRect(self,rect,event):
         painter = QPainter(self)
         #global videoGraph
         #painter = QPainter(player.videoGraph)
         painter.begin(self)
         painter.setRenderHint(QPainter.Antialiasing);
         painter.setPen(QColor(255, 0, 0, 255))
+        #QCoreApplication.sendEvent(QWidget,event)
         QPaintEvent(rect)
         pass
     '''
 
+
     def paintEvent(self,event):
         global start_point
         global end_point
+        global rect
         painter = QPainter(self)
         #global videoGraph
 
-        painter = QPainter(player.videoGraph)
-        painter.begin(self)
-        painter.setRenderHint(QPainter.Antialiasing);
-        painter.setPen(QColor(255, 0, 0, 255))
-        painter.drawRect(event)
-        QPaintEvent(event)
-
+        if end_point:
+            print 'somthing'
+            painter = QPainter(self.videoGraph)
+            painter.begin(self)
+            painter.setRenderHint(QPainter.Antialiasing);
+            painter.setPen(QColor(255, 0, 0, 255))
+            painter.drawRect(rect)
+            #QPaintEvent(event)
 
     '''
     def paintEvent(event):
@@ -360,6 +373,12 @@ class VideoPlayer(QWidget):
     def draw_rect(self,pos1,pos2):
         QRect(pos1,pos2)
         pass
+    '''
+    '''
+    class GraphicView(QGraphicsView):
+        view = GraphicView(self)
+        scene = QGraphicsScene(view)
+        item = QGraphicsVideoItem();
     '''
 
 if __name__ == '__main__':
