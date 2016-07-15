@@ -66,7 +66,7 @@ from PyQt5.QtWidgets import * #(QApplication, QFileDialog, QHBoxLayout, QLabel,
 #global end_point #= False
 start_point = False
 end_point = False
-global pix
+paint_bool = False
 out = QByteArray()
 buf = QBuffer(out)
 
@@ -144,17 +144,26 @@ class VideoPlayer(QWidget):
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.VideoSurface)
         #add duration
         self.duration = 0
-
+        #self.setAttribute(Qt.WA_TranslucentBackground)
         videoWidget = QVideoWidget()
-
-        scene = QGraphicsScene(videoWidget)
+        #videoWidget = QMediaObject()
+        #view = QGraphicsView(self)
+        self.scene = QGraphicsScene(self.mediaPlayer)
+        #item = QGraphicsVideoItem()
+        #view.setAttribute(Qt.WA_TranslucentBackground)
+        #view.setSetscene(scene)
         #~ pen = QPen(Qt.red)
         #~ scene.addText("Hello, world!")
 
-        #~ #Add this line
-        view = QGraphicsView(scene)
-        view.show()
+        self.probe = QVideoProbe()
+        self.probe.setSource(self.mediaPlayer)
 
+        '''
+        #~ #Add this line
+        view = QGraphicsView(self)
+        view.setAttribute(Qt.WA_TranslucentBackground)
+        view.show()
+        '''
 
         openButton = QPushButton("Open...")
         openButton.clicked.connect(self.openFile)
@@ -183,12 +192,14 @@ class VideoPlayer(QWidget):
         controlLayout.addWidget(self.labelDuration)
 
         layout = QVBoxLayout()
-        layout.addWidget(videoWidget)
+        #layout.addWidget(videoWidget)
+        #layout.addWidget(item)
         layout.addLayout(controlLayout)
         layout.addWidget(self.errorLabel)
 
         self.setLayout(layout)
 
+        #self.mediaPlayer.setVideoOutput(self.scene)
         self.mediaPlayer.setVideoOutput(videoWidget)
         self.mediaPlayer.stateChanged.connect(self.mediaStateChanged)
         self.mediaPlayer.positionChanged.connect(self.positionChanged)
@@ -196,11 +207,12 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.error.connect(self.handleError)
 
         #Test ideas
-        #pix = QPixmap(640,480)
-        #paint_engine = VideoPlayer.paintEngine()
-        #self.probe = QVideoProbe()
-        #self.probe.setSource(self.mediaPlayer)
-        #self.paintRect = QPaintEvent(self.mediaPlayer)
+        '''
+        #~ #Add this line
+        view = QGraphicsView(self)
+        view.setAttribute(Qt.WA_TranslucentBackground)
+        view.show()
+        '''
 
     def openFile(self):
         '''
@@ -297,13 +309,13 @@ class VideoPlayer(QWidget):
     def mousePressEvent(self,event):
         global start_point
         global end_point
-        global pix
+        global paint_bool
         #painter = QPainter()
         if QMouseEvent.button(event) == Qt.LeftButton:#QEvent.MouseButtonPress:
-            #print 'edw'
+            print "Mouse Event:", start_point, end_point
             if start_point is True and end_point is True:
-                start_point = False
-                end_point = False
+                #start_point = False
+                #end_point = False
                 #QPainter.eraseRect(rect)
                 pass
                 #QPointF.pos1 =QMouseEvent.pos()
@@ -318,44 +330,62 @@ class VideoPlayer(QWidget):
                 end_point = True
                 #print end_point
                 rect = QRect(QPoint.pos1,QPoint.pos2)
-                p_event = QPaintEvent(rect)
+                print "mpike"
+                paint_bool = True
+                #p_event = QPaintEvent(rect)
                 #player.paintEvent(rect)
                 #painter.drawRect(rect)
                 #QPaintEvent(rect)
+                pen = QPen()
+                self.scene.addRect(QRectF(rect),pen,QBrush(QColor(200, 0, 0)))
                 self.update(rect)
 
     #def QGraphicsView():
      #   pass
 
-    '''
-    def paintRect(self,rect):
-        painter = QPainter(self)
-        #global videoGraph
-        #painter = QPainter(player.videoGraph)
-        painter.begin(self)
-        painter.setRenderHint(QPainter.Antialiasing);
-        painter.setPen(QColor(255, 0, 0, 255))
-        QPaintEvent(rect)
-        pass
-    '''
-
     def paintEvent(self,event):
         global start_point
         global end_point
-
+        global paint_bool
+        #print "Paint Event:",start_point, end_point
         #global videoGraph
         if start_point is True and end_point is True:
+        #if paint_bool:
             start_point = False
             end_point = False
+
+            '''
             painter = QPainter(self)
             painter.begin(self)
             painter.setBrush(QColor(200, 0, 0))
             print event.rect()
             painter.drawRect(event.rect())
             painter.end()
+            '''
+            #painter = QPainter(self)
+            #painter.setColor(QColor(200, 0, 0))
+            #pen = QPen()
+            #painter.setPen(pen)
+            print "over hereee"
+            #self.scene.addRect(QRectF(event.rect()),pen,QBrush(QColor(200, 0, 0)))
+            #pen.end()
+            paint_bool = not paint_bool
         #~ QPaintEvent(event)
+    def mouseDoubleClickEvent(self, event):
+        self.setFullScreen(not self.isFullScreen())
+        event.accept()
 
-    '''
+'''
+class Graphics(VideoPlayer):
+    def __init__(self,parent=VideoPlayer):
+        super(Graphics,self).__init__(parent=VideoPlayer)
+
+        #self.view = QGraphicsView(self)
+        #self.view.setAttribute(Qt.WA_TranslucentBackground)
+        #view.show()
+'''
+
+'''
     def paintEvent(event):
         painter = QPainter(self)
         pass
@@ -363,7 +393,7 @@ class VideoPlayer(QWidget):
     def draw_rect(self,pos1,pos2):
         QRect(pos1,pos2)
         pass
-    '''
+'''
 
 if __name__ == '__main__':
 
@@ -372,7 +402,11 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     player = VideoPlayer()
+    #drawer = Graphics()
+    #drawer.resize(640,480)
     player.resize(640, 480)
     player.show()
+    #drawer.show()
+
 
     sys.exit(app.exec_())
