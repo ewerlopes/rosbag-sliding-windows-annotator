@@ -148,15 +148,20 @@ class VideoPlayer(QWidget):
         videoWidget = QVideoWidget()
         #videoWidget = QMediaObject()
         #view = QGraphicsView(self)
-        self.scene = QGraphicsScene(self.mediaPlayer)
+        scene = QGraphicsScene(self)
+        #scene.setAttribute(Qt.WA_TranslucentBackground)
+
+
         #item = QGraphicsVideoItem()
         #view.setAttribute(Qt.WA_TranslucentBackground)
         #view.setSetscene(scene)
         #~ pen = QPen(Qt.red)
         #~ scene.addText("Hello, world!")
 
-        self.probe = QVideoProbe()
-        self.probe.setSource(self.mediaPlayer)
+        #self.probe = QVideoProbe()
+        #self.probe.videoFrameProbed.connect(self.processFrame  )
+        #self.probe.setSource(self.mediaPlayer)
+        #self.videoFrameProbed(self.player)
 
         '''
         #~ #Add this line
@@ -178,8 +183,8 @@ class VideoPlayer(QWidget):
         self.positionSlider.setRange(0, 0)
         self.positionSlider.sliderMoved.connect(self.setPosition)
 
-        self.labelDuration = QLabel() #Add duration Label
-
+        #Add duration Label
+        self.labelDuration = QLabel()
         self.errorLabel = QLabel()
         self.errorLabel.setSizePolicy(QSizePolicy.Preferred,
                 QSizePolicy.Maximum)
@@ -192,8 +197,8 @@ class VideoPlayer(QWidget):
         controlLayout.addWidget(self.labelDuration)
 
         layout = QVBoxLayout()
-        #layout.addWidget(videoWidget)
-        #layout.addWidget(item)
+        layout.addWidget(videoWidget)
+        #layout.addWidget(scene)
         layout.addLayout(controlLayout)
         layout.addWidget(self.errorLabel)
 
@@ -309,10 +314,10 @@ class VideoPlayer(QWidget):
     def mousePressEvent(self,event):
         global start_point
         global end_point
-        global paint_bool
+        global pix
         #painter = QPainter()
         if QMouseEvent.button(event) == Qt.LeftButton:#QEvent.MouseButtonPress:
-            print "Mouse Event:", start_point, end_point
+            #print 'edw'
             if start_point is True and end_point is True:
                 #start_point = False
                 #end_point = False
@@ -330,50 +335,29 @@ class VideoPlayer(QWidget):
                 end_point = True
                 #print end_point
                 rect = QRect(QPoint.pos1,QPoint.pos2)
-                print "mpike"
-                paint_bool = True
-                #p_event = QPaintEvent(rect)
+                p_event = QPaintEvent(rect)
                 #player.paintEvent(rect)
                 #painter.drawRect(rect)
                 #QPaintEvent(rect)
-                pen = QPen()
-                self.scene.addRect(QRectF(rect),pen,QBrush(QColor(200, 0, 0)))
                 self.update(rect)
-
-    #def QGraphicsView():
-     #   pass
 
     def paintEvent(self,event):
         global start_point
         global end_point
-        global paint_bool
-        #print "Paint Event:",start_point, end_point
+
         #global videoGraph
         if start_point is True and end_point is True:
-        #if paint_bool:
             start_point = False
             end_point = False
-
-            '''
             painter = QPainter(self)
             painter.begin(self)
             painter.setBrush(QColor(200, 0, 0))
             print event.rect()
             painter.drawRect(event.rect())
             painter.end()
-            '''
-            #painter = QPainter(self)
-            #painter.setColor(QColor(200, 0, 0))
-            #pen = QPen()
-            #painter.setPen(pen)
-            print "over hereee"
-            #self.scene.addRect(QRectF(event.rect()),pen,QBrush(QColor(200, 0, 0)))
-            #pen.end()
-            paint_bool = not paint_bool
         #~ QPaintEvent(event)
-    def mouseDoubleClickEvent(self, event):
-        self.setFullScreen(not self.isFullScreen())
-        event.accept()
+
+
 
 '''
 class Graphics(VideoPlayer):
