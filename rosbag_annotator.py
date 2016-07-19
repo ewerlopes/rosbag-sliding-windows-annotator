@@ -302,8 +302,8 @@ class VideoPlayer(QWidget):
         if QMouseEvent.button(event) == Qt.LeftButton:#QEvent.MouseButtonPress:
             #print 'edw'
             if start_point is True and end_point is True:
-                start_point = False
-                end_point = False
+                #start_point = False
+                #end_point = False
                 #QPainter.eraseRect(rect)
                 pass
                 #QPointF.pos1 =QMouseEvent.pos()

@@ -8,14 +8,87 @@ The following is a translation into PyQt5 from the C++ example found in
 C:\QtEnterprise\5.1.1\msvc2010\examples\multimediawidgets\customvideosurface\customvideowidget."""
 
 
-
-import sys
+import csv
+import yaml
+import cv2
 import os
+import rosbag
+import argparse
+import textwrap
+import rospy
+from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage
+from cv_bridge import CvBridge, CvBridgeError
+import sys
+
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtMultimedia import *
 from PyQt5.QtMultimediaWidgets import *
+
+start_point = False
+end_point = False
+
+def buffer_data(csv_file, bag, input_topic, compressed):
+    image_buff = []
+    time_buff  = []
+    box_buff   = []
+    start_time = None
+    bridge     = CvBridge()
+
+    #Buffer the bounded boxes from the csv
+    if csv_file is not None and os.path.exists(csv_file):
+        with open(csv_file, 'r') as file_obj:
+            csv_reader = csv.reader(file_obj, delimiter = '\t')
+            index = [x.strip() for x in csv_reader.next()].index('Rect_x')
+            for row in csv_reader:
+                (x, y, width, height) = map(int, row[index:index + 4])
+                box_buff.append((x, y, width, height))
+
+    #Buffer the images, timestamps from the rosbag
+    for topic, msg, t in bag.read_messages(topics=[input_topic]):
+        if start_time is None:
+            start_time = t
+
+        #Get the image
+        if not compressed:
+            try:
+                cv_image = bridge.imgmsg_to_cv2(msg, "bgr8")
+            except CvBridgeError as e:
+                print e
+        else:
+            nparr = np.fromstring(msg.data, np.uint8)
+            cv_image = cv2.imdecode(nparr, cv2.CV_LOAD_IMAGE_COLOR)
+
+        image_buff.append(cv_image)
+        time_buff.append(t.to_sec() - start_time.to_sec())
+
+    return image_buff, box_buff, time_buff
+
+def get_bag_metadata(bag):
+    info_dict       = yaml.load(bag._get_yaml_info())
+    topics             = info_dict['topics']
+    topic            = topics[1]
+    duration       = info_dict['duration']
+    topic_type       = topic['type']
+    message_count = topic['messages']
+
+    #Messages for test
+    print "\nRosbag topics found: "
+    for top in topics:
+        print "\t- ", top["topic"], "\n\t\t-Type: ", topic["type"],"\n\t\t-Fps: ", topic["frequency"]
+
+    #Checking if the topic is compressed
+    if 'CompressedImage' in topic_type:
+        compressed = True
+    else:
+        compressed = False
+
+    #Get framerate
+    framerate = message_count/duration
+
+    return compressed, framerate
 
 
 class VideoWidgetSurface(QAbstractVideoSurface):
@@ -25,18 +98,11 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         self.widget = widget
         self.imageFormat = QImage.Format_Invalid
 
-        #Add test shit
-        self.targetRect = QRect()
-        self.imageSize = QSize()
-        self.sourceRect = QRect()
-        self.currentFrame = QVideoFrame()
-
     def supportedPixelFormats(self, handleType=QAbstractVideoBuffer.NoHandle):
         formats = [QVideoFrame.PixelFormat()]
         if (handleType == QAbstractVideoBuffer.NoHandle):
             for f in [QVideoFrame.Format_RGB32, QVideoFrame.Format_ARGB32, QVideoFrame.Format_ARGB32_Premultiplied, QVideoFrame.Format_RGB565, QVideoFrame.Format_RGB555,QVideoFrame.Format_BGR24,QVideoFrame.Format_RGB24]:
                 formats.append(f)
-            #print  handleType
         return formats
 
     def isFormatSupported(self, _format):
@@ -46,14 +112,12 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         _bool = False
         if (imageFormat != QImage.Format_Invalid and not size.isEmpty() and _format.handleType() == QAbstractVideoBuffer.NoHandle):
             _bool = True
-        print _bool
         return _bool
+
 
     def start(self, _format):
         imageFormat = QVideoFrame.imageFormatFromPixelFormat(_format.pixelFormat())
-        #print _format.pixelFormat() irs 3 rgb32
         size = _format.frameSize()
-        print size
         if (imageFormat != QImage.Format_Invalid and not size.isEmpty()):
             self.imageFormat = imageFormat
             self.imageSize = size
@@ -61,7 +125,6 @@ class VideoWidgetSurface(QAbstractVideoSurface):
             QAbstractVideoSurface.start(self, _format)
             self.widget.updateGeometry()
             self.updateVideoRect()
-            #print 'frame started !!'
             return True
         else:
             return False
@@ -73,44 +136,19 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         self.widget.update()
 
     def present(self, frame):
-        #print 'present' #Prints
         if (self.surfaceFormat().pixelFormat() != frame.pixelFormat() or self.surfaceFormat().frameSize() != frame.size()):
             self.setError(QAbstractVideoSurface.IncorrectFormatError)
             self.stop()
             return False
         else:
-            #print 'somthing'
             self.currentFrame = frame
-            #print self.targetRect
             self.widget.repaint(self.targetRect)
             return True
-            #self.widget.repaint(self.currentFrame)
 
-            '''
-            painter = QPainter(self.widget)
-            painter.drawText(50,50,'somthing')
-            if (self.widget.surface.isActive()):
-                #print 'mpike'
-                videoRect = self.widget.surface.videoRect()
-            if not videoRect.contains(self.targetRect):
-                #print 'edw'
-                region = event.region()
-                region.subtract(videoRect)
-                brush = self.palette().background()
-                for rect in region.rects():
-                    painter.fillRect(rect, brush)
-                    self.surface.paint(painter)
-            else:
-                painter.fillRect(self.targetRect, self.widget.palette().window())
-            #self.widget.update()
-            return True
-            '''
     def videoRect(self):
-        print 'videoRect here'
         return self.targetRect
 
     def updateVideoRect(self):
-        #print 'update videorect' #Prints
         size = self.surfaceFormat().sizeHint()
         size.scale(self.widget.size().boundedTo(size), Qt.KeepAspectRatio)
         self.targetRect = QRect(QPoint(0, 0), size);
@@ -120,7 +158,6 @@ class VideoWidgetSurface(QAbstractVideoSurface):
 
         if (self.currentFrame.map(QAbstractVideoBuffer.ReadOnly)):
             oldTransform = painter.transform()
-            print 'paint'
             if (self.surfaceFormat().scanLineDirection() == QVideoSurfaceFormat.BottomToTop):
                 painter.scale(1, -1);
                 painter.translate(0, -self.widget.height())
@@ -133,7 +170,6 @@ class VideoWidgetSurface(QAbstractVideoSurface):
             )
 
             painter.drawImage(self.targetRect, image, self.sourceRect)
-            print self.sourceRect
             painter.setTransform(oldTransform)
 
             self.currentFrame.unmap()
@@ -144,10 +180,8 @@ class VideoWidget(QWidget):
     def __init__(self, parent=None):
         super(VideoWidget, self).__init__(parent)
         self.setAutoFillBackground(False)
-        #self.setAutoFillBackground(True)
         self.setAttribute(Qt.WA_NoSystemBackground, True)
         self.setAttribute(Qt.WA_OpaquePaintEvent)   #add this line
-        #self.setAttribute(Qt.WA_PaintOnScreen, True)
         palette = self.palette()
         palette.setColor(QPalette.Background, Qt.black)
         self.setPalette(palette)
@@ -165,14 +199,13 @@ class VideoWidget(QWidget):
         return self.surface.surfaceFormat().sizeHint()
 
     def paintEvent(self, event):
-        print 'paintEvent  mpikeeeee  '
+        global start_point
+        global end_point
+
         painter = QPainter(self)
         if (self.surface.isActive()):
             videoRect = QRegion(self.surface.videoRect())
-            #print type(videoRect)
             if not videoRect.contains(event.rect()):
-                print 'edw'
-                #region = QRegion()
                 region = event.region()
                 region.subtracted(videoRect)
                 brush = self.palette().background()
@@ -182,9 +215,17 @@ class VideoWidget(QWidget):
         else:
             painter.fillRect(event.rect(), self.palette().window())
 
+        if start_point is True and end_point is True:
+            start_point = False
+            end_point = False
+            rectPainter = QPainter(self)
+            rectPainter.begin(self)
+            rectPainter.setBrush(QColor(200, 0, 0))
+            print event.rect()
+            rectPainter.drawRect(event.rect())
+            rectPainter.end()
 
     def resizeEvent(self, event):
-        print 'resizeEvent'
         QWidget.resizeEvent(self, event)
         self.surface.updateVideoRect()
 
@@ -196,7 +237,10 @@ class VideoPlayer(QWidget):
 
         self.videoWidget = VideoWidget()
         self.openButton = QPushButton("Open...")
+        self.importCsv = QPushButton("Import CSV...")
         self.openButton.clicked.connect(self.openFile)
+        self.importCsv.clicked.connect(self.openFile)
+
         self.playButton = QPushButton()
         self.playButton.setEnabled(False)
         self.playButton.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
@@ -205,11 +249,14 @@ class VideoPlayer(QWidget):
         self.positionSlider = QSlider(Qt.Horizontal)
         self.positionSlider.setRange(0, 0)
         self.positionSlider.sliderMoved.connect(self.setPosition)
+
         self.controlLayout = QHBoxLayout()
         self.controlLayout.setContentsMargins(0, 0, 0, 0)
         self.controlLayout.addWidget(self.openButton)
+        self.controlLayout.addWidget(self.importCsv)
         self.controlLayout.addWidget(self.playButton)
         self.controlLayout.addWidget(self.positionSlider)
+
 
         layout = QVBoxLayout()
         layout.addWidget(self.videoWidget)
@@ -221,13 +268,41 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.stateChanged.connect(self.mediaStateChanged)
         self.mediaPlayer.positionChanged.connect(self.positionChanged)
         self.mediaPlayer.durationChanged.connect(self.durationChanged)
-        self.mediaPlayer.error.connect(self.handleError)
 
     def openFile(self):
+        '''original openfile
         file_name, _ = QFileDialog.getOpenFileName(self, "Open Movie")
         if os.path.exists(file_name):
             self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(file_name)))
         self.playButton.setEnabled(True)
+        '''
+        fileName, _ = QFileDialog.getOpenFileName(self, "Open Movie", QDir.currentPath())
+        print fileName
+
+        bag = rosbag.Bag(fileName)
+
+        #Get bag metadata
+        (compressed, framerate) = get_bag_metadata(bag)
+
+        #Buffer the rosbag, boxes, timestamps
+        (image_buff, box_buff, time_buff) = buffer_data("/home/dimitris/GitProjects/rosbag_annotator/2016-02-12-13-43-37.csv", bag, "/camera/rgb/image_raw", compressed)
+
+        fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
+        height, width, bytesPerComponent = image_buff[0].shape
+        video_writer = cv2.VideoWriter("myvid.avi", fourcc, framerate, (width,height), cv2.IMREAD_COLOR)
+        if not video_writer.isOpened():
+            raise ValueError("Video writer could not initialize, probably wrong file extension or path given")
+        else:
+            print("Video initialized")
+        for frame in image_buff:
+            video_writer.write(frame)
+        video_writer.release()
+
+        if fileName != '':
+            self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile("/home/dimitris/GitProjects/rosbag_annotator/myvid.avi")))
+            #self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(QFileInfo(fileUrl).absoluteFilePath())))
+            #print QFileInfo(fileUrl).absoluteFilePath()
+            self.playButton.setEnabled(True)
 
     def play(self):
         if self.mediaPlayer.state() == QMediaPlayer.PlayingState:
@@ -250,25 +325,26 @@ class VideoPlayer(QWidget):
     def setPosition(self, position):
         self.mediaPlayer.setPosition(position)
 
-    #update duration
-    def updateDurationInfo(self, currentInfo):
-        duration = self.duration
-        if currentInfo or duration:
-            currentTime = QTime((currentInfo/3600)%60, (currentInfo/60)%60,
-                    currentInfo%60, (currentInfo*1000)%1000)
-            totalTime = QTime((duration/3600)%60, (duration/60)%60,
-                    duration%60, (duration*1000)%1000);
+        #Mouse callback handling for Boxes
+    def mousePressEvent(self,event):
+        global start_point
+        global end_point
 
-            format = 'hh:mm:ss' if duration > 3600 else 'mm:ss'
-            tStr = currentTime.toString(format) + " / " + totalTime.toString(format)
-        else:
-            tStr = ""
-        self.labelDuration.setText(tStr)
-
-    def handleError(self):
-        self.playButton.setEnabled(False)
-        self.errorLabel.setText("Error: " + self.mediaPlayer.errorString())
-
+        if QMouseEvent.button(event) == Qt.LeftButton:#QEvent.MouseButtonPress:
+            if start_point is True and end_point is True:
+                #QPainter.eraseRect(rect)
+                pass
+            elif start_point is False:
+                QPoint.pos1 = QMouseEvent.pos(event)
+                start_point = True
+                #print start_point
+            elif end_point is False:
+                QPoint.pos2 = QMouseEvent.pos(event) # QEvent.MouseButtonPress.pos()
+                end_point = True
+                rect = QRect(QPoint.pos1,QPoint.pos2)
+                p_event = QPaintEvent(rect)
+                #self.update(rect)
+                self.repaint(rect)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
