@@ -27,16 +27,19 @@ from PyQt5.QtCore import *
 from PyQt5.QtMultimedia import *
 from PyQt5.QtMultimediaWidgets import *
 
+#global box_buff
+#global time_buff
+
 start_point = False
 end_point = False
 
-def buffer_data(csv_file, bag, input_topic, compressed):
+def buffer_data(bag, input_topic, compressed):
     image_buff = []
     time_buff  = []
-    box_buff   = []
     start_time = None
     bridge     = CvBridge()
 
+    '''
     #Buffer the bounded boxes from the csv
     if csv_file is not None and os.path.exists(csv_file):
         with open(csv_file, 'r') as file_obj:
@@ -45,6 +48,7 @@ def buffer_data(csv_file, bag, input_topic, compressed):
             for row in csv_reader:
                 (x, y, width, height) = map(int, row[index:index + 4])
                 box_buff.append((x, y, width, height))
+    '''
 
     #Buffer the images, timestamps from the rosbag
     for topic, msg, t in bag.read_messages(topics=[input_topic]):
@@ -64,7 +68,23 @@ def buffer_data(csv_file, bag, input_topic, compressed):
         image_buff.append(cv_image)
         time_buff.append(t.to_sec() - start_time.to_sec())
 
-    return image_buff, box_buff, time_buff
+    return image_buff,  time_buff
+
+#Returns a buffer with boxes
+def buffer_csv(csv_file):
+    box_buff   = []
+
+    if csv_file is not None and os.path.exists(csv_file):
+        with open(csv_file, 'r') as file_obj:
+            csv_reader = csv.reader(file_obj, delimiter = '\t')
+            index = [x.strip() for x in csv_reader.next()].index('Rect_x')
+            for row in csv_reader:
+                (x, y, width, height) = map(int, row[index:index + 4])
+                box_buff.append((x, y, width, height))
+        return box_buff
+    else:
+        return false
+
 
 def get_bag_metadata(bag):
     info_dict       = yaml.load(bag._get_yaml_info())
@@ -136,6 +156,9 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         self.widget.update()
 
     def present(self, frame):
+        #global box_buff
+        #global time_buff
+
         if (self.surfaceFormat().pixelFormat() != frame.pixelFormat() or self.surfaceFormat().frameSize() != frame.size()):
             self.setError(QAbstractVideoSurface.IncorrectFormatError)
             self.stop()
@@ -143,6 +166,9 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         else:
             self.currentFrame = frame
             self.widget.repaint(self.targetRect)
+            print 'box Buff', self.widget.box_buff
+            print 'time Buff', self.widget.time_buff
+
             return True
 
     def videoRect(self):
@@ -158,7 +184,6 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         if (self.currentFrame.map(QAbstractVideoBuffer.ReadOnly)):
             oldTransform = painter.transform()
             if (self.surfaceFormat().scanLineDirection() == QVideoSurfaceFormat.BottomToTop):
-                print 'PAint Function'
                 painter.scale(1, -1);
                 painter.translate(0, -self.widget.height())
 
@@ -261,7 +286,7 @@ class VideoPlayer(QWidget):
         self.openButton = QPushButton("Open...")
         self.importCsv = QPushButton("Import CSV...")
         self.openButton.clicked.connect(self.openFile)
-        self.importCsv.clicked.connect(self.openFile)
+        self.importCsv.clicked.connect(self.openCsv)
 
         self.playButton = QPushButton()
         self.playButton.setEnabled(False)
@@ -307,7 +332,7 @@ class VideoPlayer(QWidget):
         (compressed, framerate) = get_bag_metadata(bag)
 
         #Buffer the rosbag, boxes, timestamps
-        (image_buff, box_buff, time_buff) = buffer_data("/home/dimitris/GitProjects/rosbag_annotator/2016-02-12-13-43-37.csv", bag, "/camera/rgb/image_raw", compressed)
+        (image_buff, time_buff) = buffer_data("/home/dimitris/GitProjects/rosbag_annotator/2016-02-12-13-43-37.csv", bag, "/camera/rgb/image_raw", compressed)
 
         fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
         height, width, bytesPerComponent = image_buff[0].shape
@@ -325,6 +350,13 @@ class VideoPlayer(QWidget):
             #self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(QFileInfo(fileUrl).absoluteFilePath())))
             #print QFileInfo(fileUrl).absoluteFilePath()
             self.playButton.setEnabled(True)
+            return self.time_buff, self.box_buff
+
+    #Open CSV file
+    def openCsv(self):
+        fileName, _ = QFileDialog.getOpenFileName(self, "Open Csv File", QDir.currentPath())
+        box_buffer = buffer_csv(filename)
+        pass
 
     def play(self):
         if self.mediaPlayer.state() == QMediaPlayer.PlayingState:
@@ -347,29 +379,6 @@ class VideoPlayer(QWidget):
     def setPosition(self, position):
         self.mediaPlayer.setPosition(position)
 
-    '''
-    #Mouse callback handling for Boxes
-    def mousePressEvent(self,event):
-        global start_point
-        global end_point
-
-        if QMouseEvent.button(event) == Qt.LeftButton:#QEvent.MouseButtonPress:
-            if start_point is True and end_point is True:
-                #QPainter.eraseRect(rect)
-                pass
-            elif start_point is False:
-                QPoint.pos1 = QMouseEvent.pos(event)
-                start_point = True
-                #print start_point
-            elif end_point is False:
-                QPoint.pos2 = QMouseEvent.pos(event) # QEvent.MouseButtonPress.pos()
-                end_point = True
-                rect = QRect(QPoint.pos1,QPoint.pos2)
-                p_event = QPaintEvent(rect)
-                print 'Mouse Event ' rect
-                #self.update(rect)
-                self.repaint(rect)
-    '''
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
