@@ -25,12 +25,18 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         self.widget = widget
         self.imageFormat = QImage.Format_Invalid
 
+        #Add test shit
+        self.targetRect = QRect()
+        self.imageSize = QSize()
+        self.sourceRect = QRect()
+        self.currentFrame = QVideoFrame()
+
     def supportedPixelFormats(self, handleType=QAbstractVideoBuffer.NoHandle):
         formats = [QVideoFrame.PixelFormat()]
         if (handleType == QAbstractVideoBuffer.NoHandle):
-            for f in [QVideoFrame.Format_RGB32, QVideoFrame.Format_ARGB32, QVideoFrame.Format_ARGB32_Premultiplied, QVideoFrame.Format_RGB565, QVideoFrame.Format_RGB555]:
-             formats.append(f)
-        #print  formats
+            for f in [QVideoFrame.Format_RGB32, QVideoFrame.Format_ARGB32, QVideoFrame.Format_ARGB32_Premultiplied, QVideoFrame.Format_RGB565, QVideoFrame.Format_RGB555,QVideoFrame.Format_BGR24,QVideoFrame.Format_RGB24]:
+                formats.append(f)
+            #print  handleType
         return formats
 
     def isFormatSupported(self, _format):
@@ -45,7 +51,9 @@ class VideoWidgetSurface(QAbstractVideoSurface):
 
     def start(self, _format):
         imageFormat = QVideoFrame.imageFormatFromPixelFormat(_format.pixelFormat())
+        #print _format.pixelFormat() irs 3 rgb32
         size = _format.frameSize()
+        print size
         if (imageFormat != QImage.Format_Invalid and not size.isEmpty()):
             self.imageFormat = imageFormat
             self.imageSize = size
@@ -53,13 +61,14 @@ class VideoWidgetSurface(QAbstractVideoSurface):
             QAbstractVideoSurface.start(self, _format)
             self.widget.updateGeometry()
             self.updateVideoRect()
+            #print 'frame started !!'
             return True
         else:
             return False
 
     def stop(self):
         self.currentFrame = QVideoFrame()
-        #self.targetRect = QRect()
+        self.targetRect = QRect()
         QAbstractVideoSurface.stop(self)
         self.widget.update()
 
@@ -70,17 +79,21 @@ class VideoWidgetSurface(QAbstractVideoSurface):
             self.stop()
             return False
         else:
-            print 'somthing'
+            #print 'somthing'
             self.currentFrame = frame
-            print self.targetRect
-            #self.widget.repaint(self.targetRect)
+            #print self.targetRect
+            self.widget.repaint(self.targetRect)
+            return True
             #self.widget.repaint(self.currentFrame)
+
+            '''
             painter = QPainter(self.widget)
+            painter.drawText(50,50,'somthing')
             if (self.widget.surface.isActive()):
-                print 'mpike'
+                #print 'mpike'
                 videoRect = self.widget.surface.videoRect()
             if not videoRect.contains(self.targetRect):
-                print 'edw'
+                #print 'edw'
                 region = event.region()
                 region.subtract(videoRect)
                 brush = self.palette().background()
@@ -91,39 +104,39 @@ class VideoWidgetSurface(QAbstractVideoSurface):
                 painter.fillRect(self.targetRect, self.widget.palette().window())
             #self.widget.update()
             return True
-
+            '''
     def videoRect(self):
         print 'videoRect here'
         return self.targetRect
 
     def updateVideoRect(self):
-        print 'update videorect' #Prints
+        #print 'update videorect' #Prints
         size = self.surfaceFormat().sizeHint()
         size.scale(self.widget.size().boundedTo(size), Qt.KeepAspectRatio)
         self.targetRect = QRect(QPoint(0, 0), size);
         self.targetRect.moveCenter(self.widget.rect().center())
 
     def paint(self, painter):
-        print 'paint'
+
         if (self.currentFrame.map(QAbstractVideoBuffer.ReadOnly)):
             oldTransform = painter.transform()
+            print 'paint'
+            if (self.surfaceFormat().scanLineDirection() == QVideoSurfaceFormat.BottomToTop):
+                painter.scale(1, -1);
+                painter.translate(0, -self.widget.height())
 
-        if (self.surfaceFormat().scanLineDirection() == QVideoSurfaceFormat.BottomToTop):
-            painter.scale(1, -1);
-            painter.translate(0, -self.widget.height())
-
-        image = QImage(self.currentFrame.bits(),
+            image = QImage(self.currentFrame.bits(),
                     self.currentFrame.width(),
                     self.currentFrame.height(),
                     self.currentFrame.bytesPerLine(),
                     self.imageFormat
-        )
+            )
 
-        painter.drawImage(self.targetRect, image, self.sourceRect)
-        print self.sourceRect
-        painter.setTransform(oldTransform)
+            painter.drawImage(self.targetRect, image, self.sourceRect)
+            print self.sourceRect
+            painter.setTransform(oldTransform)
 
-        self.currentFrame.unmap()
+            self.currentFrame.unmap()
 
 
 class VideoWidget(QWidget):
@@ -131,9 +144,10 @@ class VideoWidget(QWidget):
     def __init__(self, parent=None):
         super(VideoWidget, self).__init__(parent)
         self.setAutoFillBackground(False)
+        #self.setAutoFillBackground(True)
         self.setAttribute(Qt.WA_NoSystemBackground, True)
-        #self.setAttribute(Qt.WA_OpaquePaintEvent)
-        self.setAttribute(Qt.WA_PaintOnScreen, True)
+        self.setAttribute(Qt.WA_OpaquePaintEvent)   #add this line
+        #self.setAttribute(Qt.WA_PaintOnScreen, True)
         palette = self.palette()
         palette.setColor(QPalette.Background, Qt.black)
         self.setPalette(palette)
@@ -149,23 +163,25 @@ class VideoWidget(QWidget):
 
     def sizeHint(self):
         return self.surface.surfaceFormat().sizeHint()
-    '''
+
     def paintEvent(self, event):
-        print 'paintEvent   '
+        print 'paintEvent  mpikeeeee  '
         painter = QPainter(self)
         if (self.surface.isActive()):
-            videoRect = self.surface.videoRect()
-        if not videoRect.contains(event.rect()):
-            print 'edw'
-            region = event.region()
-            region.subtract(videoRect)
-            brush = self.palette().background()
-            for rect in region.rects():
-                painter.fillRect(rect, brush)
-                self.surface.paint(painter)
+            videoRect = QRegion(self.surface.videoRect())
+            #print type(videoRect)
+            if not videoRect.contains(event.rect()):
+                print 'edw'
+                #region = QRegion()
+                region = event.region()
+                region.subtracted(videoRect)
+                brush = self.palette().background()
+                for rect in region.rects():
+                    painter.fillRect(rect, brush)
+            self.surface.paint(painter)
         else:
             painter.fillRect(event.rect(), self.palette().window())
-    '''
+
 
     def resizeEvent(self, event):
         print 'resizeEvent'
