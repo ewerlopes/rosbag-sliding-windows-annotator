@@ -155,10 +155,10 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         self.targetRect.moveCenter(self.widget.rect().center())
 
     def paint(self, painter):
-
         if (self.currentFrame.map(QAbstractVideoBuffer.ReadOnly)):
             oldTransform = painter.transform()
             if (self.surfaceFormat().scanLineDirection() == QVideoSurfaceFormat.BottomToTop):
+                print 'PAint Function'
                 painter.scale(1, -1);
                 painter.translate(0, -self.widget.height())
 
@@ -228,6 +228,28 @@ class VideoWidget(QWidget):
     def resizeEvent(self, event):
         QWidget.resizeEvent(self, event)
         self.surface.updateVideoRect()
+
+        #Mouse callback handling for Boxes
+    def mousePressEvent(self,event):
+        global start_point
+        global end_point
+
+        if QMouseEvent.button(event) == Qt.LeftButton:#QEvent.MouseButtonPress:
+            if start_point is True and end_point is True:
+                #QPainter.eraseRect(rect)
+                pass
+            elif start_point is False:
+                QPoint.pos1 = QMouseEvent.pos(event)
+                start_point = True
+                #print start_point
+            elif end_point is False:
+                QPoint.pos2 = QMouseEvent.pos(event) # QEvent.MouseButtonPress.pos()
+                end_point = True
+                rect = QRect(QPoint.pos1,QPoint.pos2)
+                p_event = QPaintEvent(rect)
+                print 'Mouse Event ', rect
+                #self.update(rect)
+                self.repaint(rect)
 
 class VideoPlayer(QWidget):
     def __init__(self, parent=None):
@@ -325,7 +347,8 @@ class VideoPlayer(QWidget):
     def setPosition(self, position):
         self.mediaPlayer.setPosition(position)
 
-        #Mouse callback handling for Boxes
+    '''
+    #Mouse callback handling for Boxes
     def mousePressEvent(self,event):
         global start_point
         global end_point
@@ -343,8 +366,10 @@ class VideoPlayer(QWidget):
                 end_point = True
                 rect = QRect(QPoint.pos1,QPoint.pos2)
                 p_event = QPaintEvent(rect)
+                print 'Mouse Event ' rect
                 #self.update(rect)
                 self.repaint(rect)
+    '''
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
