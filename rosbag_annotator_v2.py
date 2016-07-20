@@ -354,6 +354,8 @@ class VideoPlayer(QWidget):
 
         #Buffer the rosbag, boxes, timestamps
         (self.image_buff, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
+        #print self.time_buff
+        #print len(self.time_buff) #
 
         fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
         height, width, bytesPerComponent = self.image_buff[0].shape
@@ -385,16 +387,27 @@ class VideoPlayer(QWidget):
         #transform to a list of lists
         self.box_buffer = [list(elem) for elem in box_buff]
 
-        for elem in self.box_buffer:
-            print elem
+        #self.rectId_buffer = [item[0] for item in self.box_buffer]
+        #self.box_buffer = [item[1:] for item in self.box_buffer]
+        #Frame counter initialize
+        counter = 0
+        for idx,key in enumerate(self.box_buffer):
+            if key[0] != 0:   #If new recid
+                self.addBox[counter](self,key)
+            else:
+                self.addBox[counter] = boundBox()
+                self.addBox[counter](self,self.time_buff[counter],key)
+                counter += 1
+        #print self.rectId_buffer
+        #for elem in self.box_buffer:
+            #print elem
             #for j in elem:
              #   print j
 
-
-        print self.box_buffer
+        #print len(self.time_buff)
+        #print self.box_buffer
         #print type(self.box_buffer)
         #print len(self.box_buffer)
-        pass
 
     def play(self):
         if self.mediaPlayer.state() == QMediaPlayer.PlayingState:
@@ -418,17 +431,21 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.setPosition(position)
 
 class boundBox(object):
-    def __init__(self, time,rectId, x, y, w, h):
-        super(boundBox, self).__init__(parent =None)
-        self.timestamp = []
-        self.rect_Id = []
-        self.rect_X = []
+    def __init__(self,parent = None):
+        super(boundBox, self).__init__(parent)
+        self.timestamp = [] #Holds the timestamps from the video
+        self.box_Id = []
+        self.box_Param = []
+        '''
         self.rect_Y = []
         self.rect_W = []
         self.rect_H = []
+        '''
 
-    def function(self):
-        pass
+    def addBox(self,time,key):
+        self.timestamp.append(time)
+        self.box_Id.append(key[0])
+        self.box_Param.append(key[1:])
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
