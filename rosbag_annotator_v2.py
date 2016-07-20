@@ -300,7 +300,7 @@ class VideoWidget(QWidget):
 class VideoPlayer(QWidget):
     def __init__(self, parent=None):
         super(VideoPlayer, self).__init__(parent)
-
+        self.videobox = []
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.VideoSurface)
 
         self.videoWidget = VideoWidget()
@@ -377,6 +377,7 @@ class VideoPlayer(QWidget):
 
     #Open CSV file
     def openCsv(self):
+
         self.box_buff = [None]
         fileName,_ =  QFileDialog.getOpenFileName(self, "Open Csv ", QDir.currentPath())
 
@@ -389,25 +390,21 @@ class VideoPlayer(QWidget):
 
         #self.rectId_buffer = [item[0] for item in self.box_buffer]
         #self.box_buffer = [item[1:] for item in self.box_buffer]
+        self.videobox = [boundBox(count) for count in range(len(self.time_buff))]
+        #Construct the objects for the boxes
         #Frame counter initialize
         counter = 0
         for idx,key in enumerate(self.box_buffer):
-            if key[0] != 0:   #If new recid
-                self.addBox[counter](self,key)
+            if key[0] != 0:   #If new rectId in the frame, add it!!
+                self.videobox[counter].addBox(self.time_buff[counter],key)
             else:
-                self.addBox[counter] = boundBox()
-                self.addBox[counter](self,self.time_buff[counter],key)
+                self.videobox[counter].addBox(self.time_buff[counter],key)
+                #self.videobox.append(boundBox())
+                #self.videobox[counter].addBox(self.time_buff[counter],key)
                 counter += 1
-        #print self.rectId_buffer
-        #for elem in self.box_buffer:
-            #print elem
-            #for j in elem:
-             #   print j
-
-        #print len(self.time_buff)
-        #print self.box_buffer
-        #print type(self.box_buffer)
-        #print len(self.box_buffer)
+        print len(self.videobox)
+        print type(self.videobox)
+        print self.videobox
 
     def play(self):
         if self.mediaPlayer.state() == QMediaPlayer.PlayingState:
@@ -431,8 +428,8 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.setPosition(position)
 
 class boundBox(object):
-    def __init__(self,parent = None):
-        super(boundBox, self).__init__(parent)
+    def __init__(self,parent=None):
+        super(boundBox, self).__init__()
         self.timestamp = [] #Holds the timestamps from the video
         self.box_Id = []
         self.box_Param = []
