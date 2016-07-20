@@ -117,6 +117,7 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         super(VideoWidgetSurface, self).__init__(parent)
         self.widget = widget
         self.imageFormat = QImage.Format_Invalid
+        #self.video = VideoPlayer #malakies
 
     def supportedPixelFormats(self, handleType=QAbstractVideoBuffer.NoHandle):
         formats = [QVideoFrame.PixelFormat()]
@@ -164,10 +165,13 @@ class VideoWidgetSurface(QAbstractVideoSurface):
             self.stop()
             return False
         else:
-            self.currentFrame = frame
+            self.currentFrame = frame #holds the address of the current frame shown!
             self.widget.repaint(self.targetRect)
-            print 'box Buff', self.widget.box_buff
-            print 'time Buff', self.widget.time_buff
+            print self.currentFrame
+            #if player.box_buffer not None:
+
+            #print player.box_buffer #Prints the box buffer!!!
+
 
             return True
 
@@ -323,7 +327,7 @@ class VideoPlayer(QWidget):
             self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(file_name)))
         self.playButton.setEnabled(True)
         '''
-        fileName, _ = QFileDialog.getOpenFileName(self, "Open Movie", QDir.currentPath())
+        fileName, _ = QFileDialog.getOpenFileName(self, "Open Bag", QDir.currentPath())
         print fileName
 
         bag = rosbag.Bag(fileName)
@@ -332,16 +336,16 @@ class VideoPlayer(QWidget):
         (compressed, framerate) = get_bag_metadata(bag)
 
         #Buffer the rosbag, boxes, timestamps
-        (image_buff, time_buff) = buffer_data("/home/dimitris/GitProjects/rosbag_annotator/2016-02-12-13-43-37.csv", bag, "/camera/rgb/image_raw", compressed)
+        (self.image_buff, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
 
         fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
-        height, width, bytesPerComponent = image_buff[0].shape
+        height, width, bytesPerComponent = self.image_buff[0].shape
         video_writer = cv2.VideoWriter("myvid.avi", fourcc, framerate, (width,height), cv2.IMREAD_COLOR)
         if not video_writer.isOpened():
             raise ValueError("Video writer could not initialize, probably wrong file extension or path given")
         else:
             print("Video initialized")
-        for frame in image_buff:
+        for frame in self.image_buff:
             video_writer.write(frame)
         video_writer.release()
 
@@ -350,12 +354,20 @@ class VideoPlayer(QWidget):
             #self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(QFileInfo(fileUrl).absoluteFilePath())))
             #print QFileInfo(fileUrl).absoluteFilePath()
             self.playButton.setEnabled(True)
-            return self.time_buff, self.box_buff
+            #return self.time_buff, self.box_buff
 
     #Open CSV file
     def openCsv(self):
-        fileName, _ = QFileDialog.getOpenFileName(self, "Open Csv File", QDir.currentPath())
-        box_buffer = buffer_csv(filename)
+        #global box_buff
+        fileName,_ =  QFileDialog.getOpenFileName(self, "Open Csv ", QDir.currentPath())
+
+        if not fileName.lower().endswith('.csv'):
+            raise ValueError("Could not open csv file")
+        print("Csv file loaded")
+        self.box_buffer = buffer_csv(fileName)
+        #print self.box_buffer
+        #print type(self.box_buffer)
+        #print len(self.box_buffer)
         pass
 
     def play(self):
