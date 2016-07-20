@@ -139,6 +139,7 @@ class VideoWidgetSurface(QAbstractVideoSurface):
     def start(self, _format):
         imageFormat = QVideoFrame.imageFormatFromPixelFormat(_format.pixelFormat())
         size = _format.frameSize()
+        print size
         if (imageFormat != QImage.Format_Invalid and not size.isEmpty()):
             self.imageFormat = imageFormat
             self.imageSize = size
@@ -167,7 +168,7 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         else:
             self.currentFrame = frame #holds the address of the current frame shown!
             self.widget.repaint(self.targetRect)
-            print self.currentFrame
+            #print self.currentFrame
             #if player.box_buffer not None:
 
             #print player.box_buffer #Prints the box buffer!!!
