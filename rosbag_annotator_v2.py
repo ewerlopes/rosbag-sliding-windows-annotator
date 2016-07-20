@@ -77,10 +77,10 @@ def buffer_csv(csv_file):
     if csv_file is not None and os.path.exists(csv_file):
         with open(csv_file, 'r') as file_obj:
             csv_reader = csv.reader(file_obj, delimiter = '\t')
-            index = [x.strip() for x in csv_reader.next()].index('Rect_x')
+            index = [x.strip() for x in csv_reader.next()].index('Rect_id')
             for row in csv_reader:
-                (x, y, width, height) = map(int, row[index:index + 4])
-                box_buff.append((x, y, width, height))
+                (rec_id,x, y, width, height) = map(int, row[index:index + 5])
+                box_buff.append((rec_id,x, y, width, height))
         return box_buff
     else:
         return false
@@ -160,6 +160,7 @@ class VideoWidgetSurface(QAbstractVideoSurface):
     def present(self, frame):
         #global box_buff
         #global time_buff
+        self.frameCounter = 0
 
         if (self.surfaceFormat().pixelFormat() != frame.pixelFormat() or self.surfaceFormat().frameSize() != frame.size()):
             self.setError(QAbstractVideoSurface.IncorrectFormatError)
@@ -168,8 +169,13 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         else:
             self.currentFrame = frame #holds the address of the current frame shown!
             self.widget.repaint(self.targetRect)
+            #another_painter = QPainter(painter)
             #print self.currentFrame
-            #if player.box_buffer not None:
+            '''
+            if player.box_buffer is not None:
+                self.currentRect = player.box_buffer[self.frameCounter]
+            '''
+            self.frameCounter += 1
 
             #print player.box_buffer #Prints the box buffer!!!
 
@@ -251,9 +257,19 @@ class VideoWidget(QWidget):
             rectPainter = QPainter(self)
             rectPainter.begin(self)
             rectPainter.setBrush(QColor(200, 0, 0))
-            print event.rect()
+            #print event.rect()
             rectPainter.drawRect(event.rect())
             rectPainter.end()
+        '''
+        elif self.box_buffer is not None:
+            rectPainter = QPainter(self)
+            rectPainter.begin(self)
+            rectPainter.setBrush(QColor(200, 0, 0))
+            x,y,width,height = player.box_buffer[self.frameCounter]
+            rect = QRect(x,y,width,height)
+            rectPainter.drawRect(event.rect())
+            rectPainter.end()
+        '''
 
     def resizeEvent(self, event):
         QWidget.resizeEvent(self, event)
@@ -277,7 +293,7 @@ class VideoWidget(QWidget):
                 end_point = True
                 rect = QRect(QPoint.pos1,QPoint.pos2)
                 p_event = QPaintEvent(rect)
-                print 'Mouse Event ', rect
+                #print 'Mouse Event ', rect
                 #self.update(rect)
                 self.repaint(rect)
 
@@ -359,14 +375,23 @@ class VideoPlayer(QWidget):
 
     #Open CSV file
     def openCsv(self):
-        #global box_buff
+        self.box_buff = [None]
         fileName,_ =  QFileDialog.getOpenFileName(self, "Open Csv ", QDir.currentPath())
 
         if not fileName.lower().endswith('.csv'):
             raise ValueError("Could not open csv file")
         print("Csv file loaded")
-        self.box_buffer = buffer_csv(fileName)
-        #print self.box_buffer
+        box_buff = buffer_csv(fileName)
+        #transform to a list of lists
+        self.box_buffer = [list(elem) for elem in box_buff]
+
+        for elem in self.box_buffer:
+            print elem
+            #for j in elem:
+             #   print j
+
+
+        print self.box_buffer
         #print type(self.box_buffer)
         #print len(self.box_buffer)
         pass
@@ -392,6 +417,18 @@ class VideoPlayer(QWidget):
     def setPosition(self, position):
         self.mediaPlayer.setPosition(position)
 
+class boundBox(object):
+    def __init__(self, time,rectId, x, y, w, h):
+        super(boundBox, self).__init__(parent =None)
+        self.timestamp = []
+        self.rect_Id = []
+        self.rect_X = []
+        self.rect_Y = []
+        self.rect_W = []
+        self.rect_H = []
+
+    def function(self):
+        pass
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
