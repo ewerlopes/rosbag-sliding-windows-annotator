@@ -39,17 +39,6 @@ def buffer_data(bag, input_topic, compressed):
     start_time = None
     bridge     = CvBridge()
 
-    '''
-    #Buffer the bounded boxes from the csv
-    if csv_file is not None and os.path.exists(csv_file):
-        with open(csv_file, 'r') as file_obj:
-            csv_reader = csv.reader(file_obj, delimiter = '\t')
-            index = [x.strip() for x in csv_reader.next()].index('Rect_x')
-            for row in csv_reader:
-                (x, y, width, height) = map(int, row[index:index + 4])
-                box_buff.append((x, y, width, height))
-    '''
-
     #Buffer the images, timestamps from the rosbag
     for topic, msg, t in bag.read_messages(topics=[input_topic]):
         if start_time is None:
@@ -160,7 +149,7 @@ class VideoWidgetSurface(QAbstractVideoSurface):
     def present(self, frame):
         #global box_buff
         #global time_buff
-        self.frameCounter = 0
+        #self.frameCounter = 0
 
         if (self.surfaceFormat().pixelFormat() != frame.pixelFormat() or self.surfaceFormat().frameSize() != frame.size()):
             self.setError(QAbstractVideoSurface.IncorrectFormatError)
@@ -175,7 +164,7 @@ class VideoWidgetSurface(QAbstractVideoSurface):
             if player.box_buffer is not None:
                 self.currentRect = player.box_buffer[self.frameCounter]
             '''
-            self.frameCounter += 1
+            #self.frameCounter += 1
 
             #print player.box_buffer #Prints the box buffer!!!
 
@@ -260,6 +249,15 @@ class VideoWidget(QWidget):
             #print event.rect()
             rectPainter.drawRect(event.rect())
             rectPainter.end()
+        #elif player.videobox is None:
+        elif player.boxInitialized:
+            rectPainter = QPainter(self)
+            rectPainter.begin(self)
+            rectPainter.setBrush(QColor(200, 0, 0))
+            print 'somthingg'
+            rectPainter.drawRect(player.videobox[0].box_Param)
+            rectPainter.end()
+
         '''
         elif self.box_buffer is not None:
             rectPainter = QPainter(self)
@@ -377,34 +375,37 @@ class VideoPlayer(QWidget):
 
     #Open CSV file
     def openCsv(self):
-
-        self.box_buff = [None]
         fileName,_ =  QFileDialog.getOpenFileName(self, "Open Csv ", QDir.currentPath())
 
         if not fileName.lower().endswith('.csv'):
             raise ValueError("Could not open csv file")
         print("Csv file loaded")
+
         box_buff = buffer_csv(fileName)
         #transform to a list of lists
         self.box_buffer = [list(elem) for elem in box_buff]
 
-        #self.rectId_buffer = [item[0] for item in self.box_buffer]
-        #self.box_buffer = [item[1:] for item in self.box_buffer]
+        #Initialize objects which are equal to frames
         self.videobox = [boundBox(count) for count in range(len(self.time_buff))]
-        #Construct the objects for the boxes
         #Frame counter initialize
-        counter = 0
+        counter = -1
         for idx,key in enumerate(self.box_buffer):
-            if key[0] != 0:   #If new rectId in the frame, add it!!
+            if key[0] == 0:   #If new rectId in the frame, add it!!
+                counter += 1
                 self.videobox[counter].addBox(self.time_buff[counter],key)
             else:
                 self.videobox[counter].addBox(self.time_buff[counter],key)
-                #self.videobox.append(boundBox())
-                #self.videobox[counter].addBox(self.time_buff[counter],key)
-                counter += 1
+
+        #Box class ready
+        self.boxInitialized = True
+        '''
         print len(self.videobox)
         print type(self.videobox)
-        print self.videobox
+
+        print self.videobox[28].timestamp
+        print self.videobox[28].box_Id
+        print self.videobox[28].box_Param
+        '''
 
     def play(self):
         if self.mediaPlayer.state() == QMediaPlayer.PlayingState:
