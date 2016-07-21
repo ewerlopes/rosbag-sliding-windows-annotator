@@ -98,7 +98,7 @@ def get_bag_metadata(bag):
     #Get framerate
     framerate = message_count/duration
 
-    return compressed, framerate
+    return message_count,duration,compressed, framerate
 
 
 class VideoWidgetSurface(QAbstractVideoSurface):
@@ -215,13 +215,14 @@ class VideoWidget(QWidget):
     def paintEvent(self, event):
         global start_point
         global end_point
-        global boxInitialized
         global frameCounter
 
         painter = QPainter(self)
         rectPainter = QPainter(self)
         if not rectPainter.isActive() :
+            rectPainter.setBrush(QColor(200, 0, 0))
             rectPainter.begin(self)
+
         if (self.surface.isActive()):
             videoRect = QRegion(self.surface.videoRect())
             if not videoRect.contains(event.rect()):
@@ -238,18 +239,13 @@ class VideoWidget(QWidget):
             start_point = False
             end_point = False
             rectPainter = QPainter(self)
-            rectPainter.setBrush(QColor(200, 0, 0))
             rectPainter.drawRect(event.rect())
-        #if length list > 0
-        elif boxInitialized:
+        elif len(player.videobox) > 0 :
             rectPainter.setBrush(QColor(200, 0, 0))
             print frameCounter
             if frameCounter < len(player.videobox) :
-
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
-                #rectPainter.drawRect(x,y,w,h)
-                #rectPainter.setBrush(QColor(200, 0, 0))
                     rectPainter.drawLine(x,y,x+w,y)
                     rectPainter.drawLine(x,y,x,y+h)
                     rectPainter.drawLine(x+w,y,x+w,y+h)
@@ -334,8 +330,8 @@ class VideoPlayer(QWidget):
         bag = rosbag.Bag(fileName)
 
         #Get bag metadata
-        (compressed, framerate) = get_bag_metadata(bag)
-
+        (self.message_count,self.duration,compressed, framerate) = get_bag_metadata(bag)
+        #print self.message_count
         #Buffer the rosbag, boxes, timestamps
         (self.image_buff, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
         #print len(self.image_buff)
@@ -359,8 +355,6 @@ class VideoPlayer(QWidget):
 
     #Open CSV file
     def openCsv(self):
-        global boxInitialized
-
         fileName,_ =  QFileDialog.getOpenFileName(self, "Open Csv ", QDir.currentPath())
 
         if not fileName.lower().endswith('.csv'):
@@ -376,14 +370,12 @@ class VideoPlayer(QWidget):
         #Frame counter initialize
         counter = -1
         for idx,key in enumerate(self.box_buffer):
-            if key[0] == 0:   #If new rectId in the frame, add it!!
+            if key[0] == 0:
                 counter += 1
                 self.videobox[counter].addBox(self.time_buff[counter],key)
             else:
                 self.videobox[counter].addBox(self.time_buff[counter],key)
 
-        #Box class ready
-        boxInitialized = True
         #print "OpenCSV",boxInitialized
         #print self.videobox[223].timestamp
 
@@ -400,17 +392,17 @@ class VideoPlayer(QWidget):
             self.playButton.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
 
     def positionChanged(self, position):
-        #global frameCounter
-        #frameCounter = position
         self.positionSlider.setValue(position)
-        print "Position Changed",position
-        #frameCounter = int(self.positionSlider.setValue(position))
-        #print type(self.positionSlider.setValue(position))
+
+
 
     def durationChanged(self, duration):
         self.positionSlider.setRange(0, duration)
 
+    #Allazei otan peiraksw ton slider!!
     def setPosition(self, position):
+        global frameCounter
+        frameCounter = int(round(self.message_count * position/(self.duration * 1000)))
         self.mediaPlayer.setPosition(position)
 
 class boundBox(object):
