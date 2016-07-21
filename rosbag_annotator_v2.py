@@ -32,6 +32,7 @@ from PyQt5.QtMultimediaWidgets import *
 
 start_point = False
 end_point = False
+boxInitialized = False
 
 def buffer_data(bag, input_topic, compressed):
     image_buff = []
@@ -126,9 +127,10 @@ class VideoWidgetSurface(QAbstractVideoSurface):
 
 
     def start(self, _format):
+        global frameCounter
         imageFormat = QVideoFrame.imageFormatFromPixelFormat(_format.pixelFormat())
         size = _format.frameSize()
-        print size
+        frameCounter = 0 #Frame Counter initialize
         if (imageFormat != QImage.Format_Invalid and not size.isEmpty()):
             self.imageFormat = imageFormat
             self.imageSize = size
@@ -147,28 +149,15 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         self.widget.update()
 
     def present(self, frame):
-        #global box_buff
-        #global time_buff
-        #self.frameCounter = 0
-
+        global frameCounter
         if (self.surfaceFormat().pixelFormat() != frame.pixelFormat() or self.surfaceFormat().frameSize() != frame.size()):
             self.setError(QAbstractVideoSurface.IncorrectFormatError)
             self.stop()
             return False
         else:
-            self.currentFrame = frame #holds the address of the current frame shown!
+            self.currentFrame = frame
             self.widget.repaint(self.targetRect)
-            #another_painter = QPainter(painter)
-            #print self.currentFrame
-            '''
-            if player.box_buffer is not None:
-                self.currentRect = player.box_buffer[self.frameCounter]
-            '''
-            #self.frameCounter += 1
-
-            #print player.box_buffer #Prints the box buffer!!!
-
-
+            frameCounter += 1
             return True
 
     def videoRect(self):
@@ -206,11 +195,11 @@ class VideoWidget(QWidget):
         super(VideoWidget, self).__init__(parent)
         self.setAutoFillBackground(False)
         self.setAttribute(Qt.WA_NoSystemBackground, True)
-        self.setAttribute(Qt.WA_OpaquePaintEvent)   #add this line
+        self.setAttribute(Qt.WA_OpaquePaintEvent)
         palette = self.palette()
         palette.setColor(QPalette.Background, Qt.black)
         self.setPalette(palette)
-        self.setSizePolicy(QSizePolicy.MinimumExpanding,
+        self.setSizePolicy(QSizePolicy.MinimumExpanding ,
         QSizePolicy.MinimumExpanding)
         self.surface = VideoWidgetSurface(self)
 
@@ -226,8 +215,13 @@ class VideoWidget(QWidget):
     def paintEvent(self, event):
         global start_point
         global end_point
+        global boxInitialized
+        global frameCounter
 
         painter = QPainter(self)
+        rectPainter = QPainter(self)
+        if not rectPainter.isActive() :
+            rectPainter.begin(self)
         if (self.surface.isActive()):
             videoRect = QRegion(self.surface.videoRect())
             if not videoRect.contains(event.rect()):
@@ -244,55 +238,47 @@ class VideoWidget(QWidget):
             start_point = False
             end_point = False
             rectPainter = QPainter(self)
-            rectPainter.begin(self)
             rectPainter.setBrush(QColor(200, 0, 0))
-            #print event.rect()
             rectPainter.drawRect(event.rect())
-            rectPainter.end()
-        #elif player.videobox is None:
-        elif player.boxInitialized:
-            rectPainter = QPainter(self)
-            rectPainter.begin(self)
+        #if length list > 0
+        elif boxInitialized:
             rectPainter.setBrush(QColor(200, 0, 0))
-            print 'somthingg'
-            rectPainter.drawRect(player.videobox[0].box_Param)
+            print frameCounter
+            if frameCounter < len(player.videobox) :
+
+                for i in range(len(player.videobox[frameCounter].box_Id)):
+                    x,y,w,h = player.videobox[frameCounter].box_Param[i]
+                #rectPainter.drawRect(x,y,w,h)
+                #rectPainter.setBrush(QColor(200, 0, 0))
+                    rectPainter.drawLine(x,y,x+w,y)
+                    rectPainter.drawLine(x,y,x,y+h)
+                    rectPainter.drawLine(x+w,y,x+w,y+h)
+                    rectPainter.drawLine(x,y+h,x+w,y+h)
+                    #rectPainter.end()
+        if rectPainter.isActive():
             rectPainter.end()
 
-        '''
-        elif self.box_buffer is not None:
-            rectPainter = QPainter(self)
-            rectPainter.begin(self)
-            rectPainter.setBrush(QColor(200, 0, 0))
-            x,y,width,height = player.box_buffer[self.frameCounter]
-            rect = QRect(x,y,width,height)
-            rectPainter.drawRect(event.rect())
-            rectPainter.end()
-        '''
 
     def resizeEvent(self, event):
         QWidget.resizeEvent(self, event)
         self.surface.updateVideoRect()
 
-        #Mouse callback handling for Boxes
+    #Mouse callback handling for Boxes
     def mousePressEvent(self,event):
         global start_point
         global end_point
 
-        if QMouseEvent.button(event) == Qt.LeftButton:#QEvent.MouseButtonPress:
+        if QMouseEvent.button(event) == Qt.LeftButton:
             if start_point is True and end_point is True:
-                #QPainter.eraseRect(rect)
                 pass
             elif start_point is False:
                 QPoint.pos1 = QMouseEvent.pos(event)
                 start_point = True
-                #print start_point
             elif end_point is False:
-                QPoint.pos2 = QMouseEvent.pos(event) # QEvent.MouseButtonPress.pos()
+                QPoint.pos2 = QMouseEvent.pos(event)
                 end_point = True
                 rect = QRect(QPoint.pos1,QPoint.pos2)
                 p_event = QPaintEvent(rect)
-                #print 'Mouse Event ', rect
-                #self.update(rect)
                 self.repaint(rect)
 
 class VideoPlayer(QWidget):
@@ -352,9 +338,7 @@ class VideoPlayer(QWidget):
 
         #Buffer the rosbag, boxes, timestamps
         (self.image_buff, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
-        #print self.time_buff
-        #print len(self.time_buff) #
-
+        #print len(self.image_buff)
         fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
         height, width, bytesPerComponent = self.image_buff[0].shape
         video_writer = cv2.VideoWriter("myvid.avi", fourcc, framerate, (width,height), cv2.IMREAD_COLOR)
@@ -375,6 +359,8 @@ class VideoPlayer(QWidget):
 
     #Open CSV file
     def openCsv(self):
+        global boxInitialized
+
         fileName,_ =  QFileDialog.getOpenFileName(self, "Open Csv ", QDir.currentPath())
 
         if not fileName.lower().endswith('.csv'):
@@ -397,15 +383,9 @@ class VideoPlayer(QWidget):
                 self.videobox[counter].addBox(self.time_buff[counter],key)
 
         #Box class ready
-        self.boxInitialized = True
-        '''
-        print len(self.videobox)
-        print type(self.videobox)
-
-        print self.videobox[28].timestamp
-        print self.videobox[28].box_Id
-        print self.videobox[28].box_Param
-        '''
+        boxInitialized = True
+        #print "OpenCSV",boxInitialized
+        #print self.videobox[223].timestamp
 
     def play(self):
         if self.mediaPlayer.state() == QMediaPlayer.PlayingState:
@@ -420,7 +400,12 @@ class VideoPlayer(QWidget):
             self.playButton.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
 
     def positionChanged(self, position):
+        #global frameCounter
+        #frameCounter = position
         self.positionSlider.setValue(position)
+        print "Position Changed",position
+        #frameCounter = int(self.positionSlider.setValue(position))
+        #print type(self.positionSlider.setValue(position))
 
     def durationChanged(self, duration):
         self.positionSlider.setRange(0, duration)
@@ -431,14 +416,9 @@ class VideoPlayer(QWidget):
 class boundBox(object):
     def __init__(self,parent=None):
         super(boundBox, self).__init__()
-        self.timestamp = [] #Holds the timestamps from the video
+        self.timestamp = []
         self.box_Id = []
         self.box_Param = []
-        '''
-        self.rect_Y = []
-        self.rect_W = []
-        self.rect_H = []
-        '''
 
     def addBox(self,time,key):
         self.timestamp.append(time)
