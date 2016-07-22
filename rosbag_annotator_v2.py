@@ -219,12 +219,9 @@ class VideoWidget(QWidget):
 
         painter = QPainter(self)
         rectPainter = QPainter(self)
-        #rectPainter = QPen(self)
         if not rectPainter.isActive() :
-            #rectPainter.seCompositionMode(QPainter.CompositionMode_Xor)
-            #rectPainter.setBrush(Qt.Red)#QColor(200, 0, 0))
             rectPainter.begin(self)
-        print rectPainter.isActive()
+            rectPainter.setRenderHint(QPainter.Antialiasing)
 
         if (self.surface.isActive()):
             videoRect = QRegion(self.surface.videoRect())
@@ -239,25 +236,36 @@ class VideoWidget(QWidget):
             painter.fillRect(event.rect(), self.palette().window())
 
         if start_point is True and end_point is True:
+            player.videobox[frameCounter].removeBox()
+            #print player.videobox[frameCounter].box_Id
+            #print player.videobox[frameCounter].box_Param
+            '''
             print event.rect()
             rectPainter.setPen(Qt.green)
             rectPainter.drawRect(event.rect())
             rectPainter.setRenderHint(QPainter.Antialiasing)
             '''
+
+            '''
             x = event.rect().x()
             y = event.rect().y()
             w = event.rect().width()
             h = event.rect().height()
-            rectPainter.drawLine(x,y,x+w,y)
-            rectPainter.drawLine(x,y,x,y+h)
-            rectPainter.drawLine(x,y+h,x+w,y+h)
-            rectPainter.drawLine(x,y+h,x+w,y+h)
             '''
+
+            '''
+            #Erase old boxes!!
             for i in range(len(player.videobox[frameCounter].box_Id)):
+                    print "Come onn"
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
                     rectPainter.setPen(Qt.red)
                     rectPainter.drawRect(x,y,w,h)
                     rectPainter.setRenderHint(QPainter.Antialiasing)
+            '''
+
+            rectPainter.setPen(Qt.green)
+            rectPainter.drawRect(event.rect())
+            rectPainter.setRenderHint(QPainter.Antialiasing)
 
             '''
             x = event.rect().x()
@@ -267,7 +275,7 @@ class VideoWidget(QWidget):
             '''
             #implement removeBox
             #rectPainter.drawRect(120,125,25,35)
-            print "Mpike sti paint"
+            #print "Mpike sti paint"
             start_point = False
             end_point = False
         elif len(player.videobox) > 0 :
@@ -286,9 +294,11 @@ class VideoWidget(QWidget):
         global end_point
 
         if QMouseEvent.button(event) == Qt.LeftButton:
-            if start_point is True and end_point is True:
+            #if start_point is True and end_point is True:
+            if QMediaPlayer.PausedState:
                 print QPoint.pos1
                 print QPoint.pos2
+                self.repaint()
                 pass
             elif start_point is False:
                 QPoint.pos1 = QMouseEvent.pos(event)
@@ -445,6 +455,11 @@ class boundBox(object):
         self.timestamp.append(time)
         self.box_Id.append(key[0])
         self.box_Param.append(key[1:])
+
+    def removeBox(self):#,frameCounter):
+        self.box_Id[:] = []
+        self.box_Param[:] = []
+        pass
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
