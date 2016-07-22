@@ -219,9 +219,12 @@ class VideoWidget(QWidget):
 
         painter = QPainter(self)
         rectPainter = QPainter(self)
+        #rectPainter = QPen(self)
         if not rectPainter.isActive() :
-            rectPainter.setBrush(QColor(200, 0, 0))
+            #rectPainter.seCompositionMode(QPainter.CompositionMode_Xor)
+            #rectPainter.setBrush(Qt.Red)#QColor(200, 0, 0))
             rectPainter.begin(self)
+        print rectPainter.isActive()
 
         if (self.surface.isActive()):
             videoRect = QRegion(self.surface.videoRect())
@@ -236,28 +239,46 @@ class VideoWidget(QWidget):
             painter.fillRect(event.rect(), self.palette().window())
 
         if start_point is True and end_point is True:
+            print event.rect()
+            rectPainter.setPen(Qt.green)
+            rectPainter.drawRect(event.rect())
+            rectPainter.setRenderHint(QPainter.Antialiasing)
+            '''
+            x = event.rect().x()
+            y = event.rect().y()
+            w = event.rect().width()
+            h = event.rect().height()
+            rectPainter.drawLine(x,y,x+w,y)
+            rectPainter.drawLine(x,y,x,y+h)
+            rectPainter.drawLine(x,y+h,x+w,y+h)
+            rectPainter.drawLine(x,y+h,x+w,y+h)
+            '''
+            for i in range(len(player.videobox[frameCounter].box_Id)):
+                    x,y,w,h = player.videobox[frameCounter].box_Param[i]
+                    rectPainter.setPen(Qt.red)
+                    rectPainter.drawRect(x,y,w,h)
+                    rectPainter.setRenderHint(QPainter.Antialiasing)
+
+            '''
+            x = event.rect().x()
+            y = event.rect().y()
+            w = event.rect().width()
+            h = event.rect().height()
+            '''
+            #implement removeBox
+            #rectPainter.drawRect(120,125,25,35)
+            print "Mpike sti paint"
             start_point = False
             end_point = False
-            rectPainter = QPainter(self)
-            rectPainter.drawRect(event.rect())
         elif len(player.videobox) > 0 :
-            rectPainter.setBrush(QColor(200, 0, 0))
             print frameCounter
             if frameCounter < len(player.videobox) :
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
-                    rectPainter.drawLine(x,y,x+w,y)
-                    rectPainter.drawLine(x,y,x,y+h)
-                    rectPainter.drawLine(x+w,y,x+w,y+h)
-                    rectPainter.drawLine(x,y+h,x+w,y+h)
-                    #rectPainter.end()
+                    rectPainter.setPen(Qt.blue)
+                    rectPainter.drawRect(x,y,w,h)
         if rectPainter.isActive():
             rectPainter.end()
-
-
-    def resizeEvent(self, event):
-        QWidget.resizeEvent(self, event)
-        self.surface.updateVideoRect()
 
     #Mouse callback handling for Boxes
     def mousePressEvent(self,event):
@@ -266,16 +287,26 @@ class VideoWidget(QWidget):
 
         if QMouseEvent.button(event) == Qt.LeftButton:
             if start_point is True and end_point is True:
+                print QPoint.pos1
+                print QPoint.pos2
                 pass
             elif start_point is False:
                 QPoint.pos1 = QMouseEvent.pos(event)
                 start_point = True
             elif end_point is False:
                 QPoint.pos2 = QMouseEvent.pos(event)
-                end_point = True
                 rect = QRect(QPoint.pos1,QPoint.pos2)
-                p_event = QPaintEvent(rect)
+                print "rect == ",rect
+                end_point = True
+                #p_event = QPaintEvent(rect)
+                print QPoint.pos1
+                print QPoint.pos2
                 self.repaint(rect)
+
+    def resizeEvent(self, event):
+        QWidget.resizeEvent(self, event)
+        self.surface.updateVideoRect()
+
 
 class VideoPlayer(QWidget):
     def __init__(self, parent=None):
@@ -325,6 +356,7 @@ class VideoPlayer(QWidget):
         self.playButton.setEnabled(True)
         '''
         fileName, _ = QFileDialog.getOpenFileName(self, "Open Bag", QDir.currentPath())
+        #fileName, _ = QFileDialog.getOpenFileName(QFileDialog.setDirectory("/home/dimitris/GitProjects/rosbag_annotator/2016-02-12-13-43-37.bag"))
         print fileName
 
         bag = rosbag.Bag(fileName)
@@ -356,7 +388,7 @@ class VideoPlayer(QWidget):
     #Open CSV file
     def openCsv(self):
         fileName,_ =  QFileDialog.getOpenFileName(self, "Open Csv ", QDir.currentPath())
-
+        #fileName,_ =  QFileDialog.getOpenFileName(QUrl.fromLocalFile("/home/dimitris/GitProjects/rosbag_annotator/2016-02-12-13-43-37.csv"))
         if not fileName.lower().endswith('.csv'):
             raise ValueError("Could not open csv file")
         print("Csv file loaded")
@@ -375,9 +407,6 @@ class VideoPlayer(QWidget):
                 self.videobox[counter].addBox(self.time_buff[counter],key)
             else:
                 self.videobox[counter].addBox(self.time_buff[counter],key)
-
-        #print "OpenCSV",boxInitialized
-        #print self.videobox[223].timestamp
 
     def play(self):
         if self.mediaPlayer.state() == QMediaPlayer.PlayingState:
