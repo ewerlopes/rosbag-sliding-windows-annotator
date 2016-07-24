@@ -63,17 +63,19 @@ def buffer_data(bag, input_topic, compressed):
 #Returns a buffer with boxes
 def buffer_csv(csv_file):
     box_buff   = []
-
     if csv_file is not None and os.path.exists(csv_file):
         with open(csv_file, 'r') as file_obj:
             csv_reader = csv.reader(file_obj, delimiter = '\t')
-            index = [x.strip() for x in csv_reader.next()].index('Rect_id')
+            try:
+                index = [x.strip() for x in csv_reader.next()].index('Rect_id')
+            except:
+                return False
             for row in csv_reader:
                 (rec_id,x, y, width, height) = map(int, row[index:index + 5])
                 box_buff.append((rec_id,x, y, width, height))
         return box_buff
     else:
-        return false
+        return False
 
 
 def get_bag_metadata(bag):
@@ -236,23 +238,12 @@ class VideoWidget(QWidget):
             painter.fillRect(event.rect(), self.palette().window())
 
         if start_point is True and end_point is True:
-            player.videobox[frameCounter].removeBox()
-            #print player.videobox[frameCounter].box_Id
-            #print player.videobox[frameCounter].box_Param
-            '''
-            print event.rect()
-            rectPainter.setPen(Qt.green)
-            rectPainter.drawRect(event.rect())
-            rectPainter.setRenderHint(QPainter.Antialiasing)
-            '''
-
+            #player.videobox[frameCounter].removeBox()
             '''
             x = event.rect().x()
             y = event.rect().y()
             w = event.rect().width()
             h = event.rect().height()
-            '''
-
             '''
             #Erase old boxes!!
             for i in range(len(player.videobox[frameCounter].box_Id)):
@@ -261,12 +252,11 @@ class VideoWidget(QWidget):
                     rectPainter.setPen(Qt.red)
                     rectPainter.drawRect(x,y,w,h)
                     rectPainter.setRenderHint(QPainter.Antialiasing)
-            '''
+
 
             rectPainter.setPen(Qt.green)
             rectPainter.drawRect(event.rect())
             rectPainter.setRenderHint(QPainter.Antialiasing)
-
             '''
             x = event.rect().x()
             y = event.rect().y()
@@ -278,8 +268,8 @@ class VideoWidget(QWidget):
             #print "Mpike sti paint"
             start_point = False
             end_point = False
-        elif len(player.videobox) > 0 :
-            print frameCounter
+        elif len(player.videobox) > 0 and  player.mediaPlayer.state() == QMediaPlayer.PlayingState:
+            #print frameCounter
             if frameCounter < len(player.videobox) :
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
@@ -294,11 +284,7 @@ class VideoWidget(QWidget):
         global end_point
 
         if QMouseEvent.button(event) == Qt.LeftButton:
-            #if start_point is True and end_point is True:
-            if QMediaPlayer.PausedState:
-                print QPoint.pos1
-                print QPoint.pos2
-                self.repaint()
+            if start_point is True and end_point is True:
                 pass
             elif start_point is False:
                 QPoint.pos1 = QMouseEvent.pos(event)
@@ -365,30 +351,39 @@ class VideoPlayer(QWidget):
             self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(file_name)))
         self.playButton.setEnabled(True)
         '''
-        fileName, _ = QFileDialog.getOpenFileName(self, "Open Bag", QDir.currentPath())
-        #fileName, _ = QFileDialog.getOpenFileName(QFileDialog.setDirectory("/home/dimitris/GitProjects/rosbag_annotator/2016-02-12-13-43-37.bag"))
-        print fileName
 
-        bag = rosbag.Bag(fileName)
+        fileName,_ = QFileDialog.getOpenFileName(self, "Open Bag", QDir.currentPath(),"*.bag")
+        #fileName, _ = QFileDialog.getOpenFileName(QFileDialog.setDirectory("/home/dimitris/GitProjects/rosbag_annotator/2016-02-12-13-43-37.bag"))
+        '''
+        if  fileName is True:
+            QMessageBox.warning(self,"Error Opening Bag file")
+        '''
+        if not fileName :
+            msgBox = QMessageBox()
+            msgBox.setText("Error Opening Bag file, please try again")
+            msgBox.resize(100,40)
+            msgBox.exec_()
+        else:
+            bag = rosbag.Bag(fileName)
 
         #Get bag metadata
-        (self.message_count,self.duration,compressed, framerate) = get_bag_metadata(bag)
-        #print self.message_count
+            (self.message_count,self.duration,compressed, framerate) = get_bag_metadata(bag)
         #Buffer the rosbag, boxes, timestamps
-        (self.image_buff, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
+            (self.image_buff, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
         #print len(self.image_buff)
-        fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
-        height, width, bytesPerComponent = self.image_buff[0].shape
-        video_writer = cv2.VideoWriter("myvid.avi", fourcc, framerate, (width,height), cv2.IMREAD_COLOR)
-        if not video_writer.isOpened():
-            raise ValueError("Video writer could not initialize, probably wrong file extension or path given")
-        else:
-            print("Video initialized")
-        for frame in self.image_buff:
-            video_writer.write(frame)
-        video_writer.release()
+            fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
+            height, width, bytesPerComponent = self.image_buff[0].shape
+            video_writer = cv2.VideoWriter("myvid.avi", fourcc, framerate, (width,height), cv2.IMREAD_COLOR)
 
-        if fileName != '':
+            if not video_writer.isOpened():
+                raise ValueError("Video writer could not initialize, probably wrong file extension or path given")
+            else:
+                print("Video initialized")
+            for frame in self.image_buff:
+                video_writer.write(frame)
+            video_writer.release()
+
+            #if fileName != '':
             self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile("/home/dimitris/GitProjects/rosbag_annotator/myvid.avi")))
             #self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(QFileInfo(fileUrl).absoluteFilePath())))
             #print QFileInfo(fileUrl).absoluteFilePath()
@@ -397,30 +392,41 @@ class VideoPlayer(QWidget):
 
     #Open CSV file
     def openCsv(self):
-        fileName,_ =  QFileDialog.getOpenFileName(self, "Open Csv ", QDir.currentPath())
+        fileName,_ =  QFileDialog.getOpenFileName(self, "Open Csv ", QDir.currentPath(),"*.csv")
+        #QFileDialog.setNameFilter("*.csv")
         #fileName,_ =  QFileDialog.getOpenFileName(QUrl.fromLocalFile("/home/dimitris/GitProjects/rosbag_annotator/2016-02-12-13-43-37.csv"))
+        #if !fileName :
+        print fileName
+
+        '''
         if not fileName.lower().endswith('.csv'):
             raise ValueError("Could not open csv file")
         print("Csv file loaded")
-
+        '''
         box_buff = buffer_csv(fileName)
-        #transform to a list of lists
-        self.box_buffer = [list(elem) for elem in box_buff]
+        if not box_buff :
+            msgBox = QMessageBox()
+            msgBox.setText("Error occured: Please check CSV file ")
+            msgBox.resize(100,40)
+            msgBox.exec_()
+        else:#transform to a list of lists
+            self.box_buffer = [list(elem) for elem in box_buff]
 
-        #Initialize objects which are equal to frames
-        self.videobox = [boundBox(count) for count in range(len(self.time_buff))]
-        #Frame counter initialize
-        counter = -1
-        for idx,key in enumerate(self.box_buffer):
-            if key[0] == 0:
-                counter += 1
-                self.videobox[counter].addBox(self.time_buff[counter],key)
-            else:
-                self.videobox[counter].addBox(self.time_buff[counter],key)
+            #Initialize objects which are equal to frames
+            self.videobox = [boundBox(count) for count in range(len(self.time_buff))]
+            #Frame counter initialize
+            counter = -1
+            for idx,key in enumerate(self.box_buffer):
+                if key[0] == 0:
+                    counter += 1
+                    self.videobox[counter].addBox(self.time_buff[counter],key)
+                else:
+                    self.videobox[counter].addBox(self.time_buff[counter],key)
 
     def play(self):
         if self.mediaPlayer.state() == QMediaPlayer.PlayingState:
             self.mediaPlayer.pause()
+            #self.repaint()
         else:
             self.mediaPlayer.play()
 
