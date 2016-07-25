@@ -127,7 +127,6 @@ class VideoWidgetSurface(QAbstractVideoSurface):
             _bool = True
         return _bool
 
-
     def start(self, _format):
         global frameCounter
         imageFormat = QVideoFrame.imageFormatFromPixelFormat(_format.pixelFormat())
@@ -191,6 +190,7 @@ class VideoWidgetSurface(QAbstractVideoSurface):
             self.currentFrame.unmap()
 
 
+
 class VideoWidget(QWidget):
 
     def __init__(self, parent=None):
@@ -204,6 +204,7 @@ class VideoWidget(QWidget):
         self.setSizePolicy(QSizePolicy.MinimumExpanding ,
         QSizePolicy.MinimumExpanding)
         self.surface = VideoWidgetSurface(self)
+
 
     def videoSurface(self):
         return self.surface
@@ -221,6 +222,7 @@ class VideoWidget(QWidget):
 
         painter = QPainter(self)
         rectPainter = QPainter(self)
+
         if not rectPainter.isActive() :
             rectPainter.begin(self)
             rectPainter.setRenderHint(QPainter.Antialiasing)
@@ -237,44 +239,55 @@ class VideoWidget(QWidget):
         else:
             painter.fillRect(event.rect(), self.palette().window())
 
-        if start_point is True and end_point is True:
-            #player.videobox[frameCounter].removeBox()
-            '''
-            x = event.rect().x()
-            y = event.rect().y()
-            w = event.rect().width()
-            h = event.rect().height()
-            '''
-            #Erase old boxes!!
+        if player.controlEnabled :
+            posX = self.eraseRectPos.x()
+            posY = self.eraseRectPos.y()
             for i in range(len(player.videobox[frameCounter].box_Id)):
-                    print "Come onn"
-                    x,y,w,h = player.videobox[frameCounter].box_Param[i]
+                x,y,w,h = player.videobox[frameCounter].box_Param[i]
+                if posX > x and posX < (x+w) and posY > y and posY < (y+h):
+                    print "Mpikee"
                     rectPainter.setPen(Qt.red)
                     rectPainter.drawRect(x,y,w,h)
                     rectPainter.setRenderHint(QPainter.Antialiasing)
+                    print x
+                    print y
+                    pass
 
+        elif start_point is True and end_point is True and player.mediaPlayer.state() == QMediaPlayer.PausedState:
+            #player.videobox[frameCounter].removeBox()
 
-            rectPainter.setPen(Qt.green)
-            rectPainter.drawRect(event.rect())
-            rectPainter.setRenderHint(QPainter.Antialiasing)
-            '''
             x = event.rect().x()
             y = event.rect().y()
             w = event.rect().width()
             h = event.rect().height()
+
+            #Repaint  old boxes red!!
+            #if player.mediaPlayer.state() == QMediaPlayer.PlayingState:
             '''
+            for i in range(len(player.videobox[frameCounter].box_Id)):
+                print "Come onn"
+                x,y,w,h = player.videobox[frameCounter].box_Param[i]
+                rectPainter.setPen(Qt.red)
+                rectPainter.drawRect(x,y,w,h)
+                rectPainter.setRenderHint(QPainter.Antialiasing)
+            '''
+            rectPainter.setPen(Qt.green)
+            rectPainter.drawRect(x,y,w,h)
+            #rectPainter.setRenderHint(QPainter.Antialiasing)
+
             #implement removeBox
             #rectPainter.drawRect(120,125,25,35)
             #print "Mpike sti paint"
             start_point = False
             end_point = False
-        elif len(player.videobox) > 0 and  player.mediaPlayer.state() == QMediaPlayer.PlayingState:
-            #print frameCounter
+        elif len(player.videobox) > 0: #and  player.mediaPlayer.state() == QMediaPlayer.PlayingState:
             if frameCounter < len(player.videobox) :
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
                     rectPainter.setPen(Qt.blue)
                     rectPainter.drawRect(x,y,w,h)
+                    rectPainter.setRenderHint(QPainter.Antialiasing)
+
         if rectPainter.isActive():
             rectPainter.end()
 
@@ -283,7 +296,11 @@ class VideoWidget(QWidget):
         global start_point
         global end_point
 
-        if QMouseEvent.button(event) == Qt.LeftButton:
+        if player.controlEnabled and QMouseEvent.button(event) == Qt.LeftButton:
+             self.eraseRectPos= QMouseEvent.pos(event)
+             self.repaint()
+
+        elif QMouseEvent.button(event) == Qt.LeftButton:
             if start_point is True and end_point is True:
                 pass
             elif start_point is False:
@@ -292,12 +309,10 @@ class VideoWidget(QWidget):
             elif end_point is False:
                 QPoint.pos2 = QMouseEvent.pos(event)
                 rect = QRect(QPoint.pos1,QPoint.pos2)
-                print "rect == ",rect
+                #print "rect == ",rect
                 end_point = True
-                #p_event = QPaintEvent(rect)
-                print QPoint.pos1
-                print QPoint.pos2
                 self.repaint(rect)
+
 
     def resizeEvent(self, event):
         QWidget.resizeEvent(self, event)
@@ -331,7 +346,7 @@ class VideoPlayer(QWidget):
         self.controlLayout.addWidget(self.importCsv)
         self.controlLayout.addWidget(self.playButton)
         self.controlLayout.addWidget(self.positionSlider)
-
+        self.controlEnabled = False
 
         layout = QVBoxLayout()
         layout.addWidget(self.videoWidget)
@@ -439,7 +454,13 @@ class VideoPlayer(QWidget):
     def positionChanged(self, position):
         self.positionSlider.setValue(position)
 
+    def keyPressEvent(self,event):
+        if event.key() == Qt.Key_Control:
+            self.controlEnabled = True
 
+    def keyReleaseEvent(self,event):
+        if event.key() == Qt.Key_Control:
+            self.controlEnabled = False
 
     def durationChanged(self, duration):
         self.positionSlider.setRange(0, duration)
@@ -449,6 +470,9 @@ class VideoPlayer(QWidget):
         global frameCounter
         frameCounter = int(round(self.message_count * position/(self.duration * 1000)))
         self.mediaPlayer.setPosition(position)
+
+
+
 
 class boundBox(object):
     def __init__(self,parent=None):
