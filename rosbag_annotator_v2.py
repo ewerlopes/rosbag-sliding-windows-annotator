@@ -204,7 +204,7 @@ class VideoWidget(QWidget):
         self.setSizePolicy(QSizePolicy.MinimumExpanding ,
         QSizePolicy.MinimumExpanding)
         self.surface = VideoWidgetSurface(self)
-
+        self.vanishBox = False
 
     def videoSurface(self):
         return self.surface
@@ -225,9 +225,10 @@ class VideoWidget(QWidget):
 
         if not rectPainter.isActive() :
             rectPainter.begin(self)
-            rectPainter.setRenderHint(QPainter.Antialiasing)
+            #rectPainter.setRenderHint(QPainter.Antialiasing)
 
         if (self.surface.isActive()):
+            print "Test surface"
             videoRect = QRegion(self.surface.videoRect())
             if not videoRect.contains(event.rect()):
                 region = event.region()
@@ -240,53 +241,43 @@ class VideoWidget(QWidget):
             painter.fillRect(event.rect(), self.palette().window())
 
         if player.controlEnabled :
+            print "Mpainei edw"
             posX = self.eraseRectPos.x()
             posY = self.eraseRectPos.y()
+            #print posX,posY
             for i in range(len(player.videobox[frameCounter].box_Id)):
                 x,y,w,h = player.videobox[frameCounter].box_Param[i]
                 if posX > x and posX < (x+w) and posY > y and posY < (y+h):
                     print "Mpikee"
+                    rectPainter.setRenderHint(QPainter.Antialiasing)
                     rectPainter.setPen(Qt.red)
                     rectPainter.drawRect(x,y,w,h)
-                    rectPainter.setRenderHint(QPainter.Antialiasing)
-                    print x
-                    print y
-                    pass
+                    #player.videobox[frameCounter].removeBox()
 
-        elif start_point is True and end_point is True and player.mediaPlayer.state() == QMediaPlayer.PausedState:
-            #player.videobox[frameCounter].removeBox()
-
+        elif start_point is True and end_point is True: #and player.mediaPlayer.state() == QMediaPlayer.PausedState:
+            #print "Mpainei ree??"
             x = event.rect().x()
             y = event.rect().y()
             w = event.rect().width()
             h = event.rect().height()
-
             #Repaint  old boxes red!!
             #if player.mediaPlayer.state() == QMediaPlayer.PlayingState:
-            '''
-            for i in range(len(player.videobox[frameCounter].box_Id)):
-                print "Come onn"
-                x,y,w,h = player.videobox[frameCounter].box_Param[i]
-                rectPainter.setPen(Qt.red)
-                rectPainter.drawRect(x,y,w,h)
-                rectPainter.setRenderHint(QPainter.Antialiasing)
-            '''
+            rectPainter.setRenderHint(QPainter.Antialiasing)
             rectPainter.setPen(Qt.green)
             rectPainter.drawRect(x,y,w,h)
-            #rectPainter.setRenderHint(QPainter.Antialiasing)
 
             #implement removeBox
-            #rectPainter.drawRect(120,125,25,35)
-            #print "Mpike sti paint"
             start_point = False
             end_point = False
-        elif len(player.videobox) > 0: #and  player.mediaPlayer.state() == QMediaPlayer.PlayingState:
+        elif len(player.videobox) > 0 and not  self.vanishBox: #and  player.mediaPlayer.state() == QMediaPlayer.PlayingState:
+            print "Zwgrafizei k edw!!   "
             if frameCounter < len(player.videobox) :
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
                     rectPainter.setPen(Qt.blue)
                     rectPainter.drawRect(x,y,w,h)
-                    rectPainter.setRenderHint(QPainter.Antialiasing)
+                    #rectPainter.setRenderHint(QPainter.Antialiasing)
+        self.vanishBox = False
 
         if rectPainter.isActive():
             rectPainter.end()
@@ -299,19 +290,22 @@ class VideoWidget(QWidget):
         if player.controlEnabled and QMouseEvent.button(event) == Qt.LeftButton:
              self.eraseRectPos= QMouseEvent.pos(event)
              self.repaint()
-
         elif QMouseEvent.button(event) == Qt.LeftButton:
             if start_point is True and end_point is True:
+                #self.repaint()
                 pass
             elif start_point is False:
                 QPoint.pos1 = QMouseEvent.pos(event)
                 start_point = True
+                #self.repaint()
             elif end_point is False:
                 QPoint.pos2 = QMouseEvent.pos(event)
                 rect = QRect(QPoint.pos1,QPoint.pos2)
-                #print "rect == ",rect
+                self.vanishBox = True
                 end_point = True
+                #self.repaint()
                 self.repaint(rect)
+                #self.repaint()
 
 
     def resizeEvent(self, event):
@@ -441,7 +435,7 @@ class VideoPlayer(QWidget):
     def play(self):
         if self.mediaPlayer.state() == QMediaPlayer.PlayingState:
             self.mediaPlayer.pause()
-            #self.repaint()
+            self.repaint()
         else:
             self.mediaPlayer.play()
 
