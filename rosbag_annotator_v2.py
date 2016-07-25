@@ -20,15 +20,11 @@ from sensor_msgs.msg import Image
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge, CvBridgeError
 import sys
-
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtMultimedia import *
 from PyQt5.QtMultimediaWidgets import *
-
-#global box_buff
-#global time_buff
 
 start_point = False
 end_point = False
@@ -150,7 +146,7 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         self.widget.update()
 
     def present(self, frame):
-        global frameCounter
+        global frameCounter,removeBool
         if (self.surfaceFormat().pixelFormat() != frame.pixelFormat() or self.surfaceFormat().frameSize() != frame.size()):
             self.setError(QAbstractVideoSurface.IncorrectFormatError)
             self.stop()
@@ -159,6 +155,7 @@ class VideoWidgetSurface(QAbstractVideoSurface):
             self.currentFrame = frame
             self.widget.repaint(self.targetRect)
             frameCounter += 1
+            removeBool = True #Removes the boxes on current frame
             return True
 
     def videoRect(self):
@@ -188,9 +185,12 @@ class VideoWidgetSurface(QAbstractVideoSurface):
             painter.setTransform(oldTransform)
 
             self.currentFrame.unmap()
-
-
-
+    '''
+    def closeEvent(self,event):
+        print "closeEVENT"
+        writeCSV(self.videobox)
+        pass
+    '''
 class VideoWidget(QWidget):
 
     def __init__(self, parent=None):
@@ -205,13 +205,15 @@ class VideoWidget(QWidget):
         QSizePolicy.MinimumExpanding)
         self.surface = VideoWidgetSurface(self)
         self.vanishBox = False
+        self.enableWriteBox = False
 
     def videoSurface(self):
         return self.surface
-
+    '''
     def closeEvent(self, event):
+        print "closeEVENT"
         del self.surface
-
+    '''
     def sizeHint(self):
         return self.surface.surfaceFormat().sizeHint()
 
@@ -219,6 +221,7 @@ class VideoWidget(QWidget):
         global start_point
         global end_point
         global frameCounter
+        global removeBool
 
         painter = QPainter(self)
         rectPainter = QPainter(self)
@@ -228,7 +231,7 @@ class VideoWidget(QWidget):
             #rectPainter.setRenderHint(QPainter.Antialiasing)
 
         if (self.surface.isActive()):
-            print "Test surface"
+            #print "Test surface"
             videoRect = QRegion(self.surface.videoRect())
             if not videoRect.contains(event.rect()):
                 region = event.region()
@@ -241,18 +244,16 @@ class VideoWidget(QWidget):
             painter.fillRect(event.rect(), self.palette().window())
 
         if player.controlEnabled :
-            print "Mpainei edw"
+            #print "Mpainei edw"
             posX = self.eraseRectPos.x()
             posY = self.eraseRectPos.y()
-            #print posX,posY
             for i in range(len(player.videobox[frameCounter].box_Id)):
                 x,y,w,h = player.videobox[frameCounter].box_Param[i]
                 if posX > x and posX < (x+w) and posY > y and posY < (y+h):
-                    print "Mpikee"
                     rectPainter.setRenderHint(QPainter.Antialiasing)
                     rectPainter.setPen(Qt.red)
                     rectPainter.drawRect(x,y,w,h)
-                    #player.videobox[frameCounter].removeBox()
+                    #player.videobox[frameCounter].removeBox() #CTRL + CLICK removes the box
 
         elif start_point is True and end_point is True: #and player.mediaPlayer.state() == QMediaPlayer.PausedState:
             #print "Mpainei ree??"
@@ -260,58 +261,68 @@ class VideoWidget(QWidget):
             y = event.rect().y()
             w = event.rect().width()
             h = event.rect().height()
-            #Repaint  old boxes red!!
-            #if player.mediaPlayer.state() == QMediaPlayer.PlayingState:
+
             rectPainter.setRenderHint(QPainter.Antialiasing)
             rectPainter.setPen(Qt.green)
             rectPainter.drawRect(x,y,w,h)
 
-            #implement removeBox
-            start_point = False
-            end_point = False
+            if self.enableWriteBox:
+                if removeBool:
+                    player.videobox[frameCounter].removeBox() #Deletes all boxes in current frame
+                print player.videobox[frameCounter].box_Id
+                timeId = player.videobox[frameCounter].timestamp[0]
+                boxNumber = len(player.videobox[frameCounter].box_Id)
+                player.videobox[frameCounter].addBox(timeId,[boxNumber,x,y,w,h])
+                print "Boxnumber",boxNumber
+
         elif len(player.videobox) > 0 and not  self.vanishBox: #and  player.mediaPlayer.state() == QMediaPlayer.PlayingState:
-            print "Zwgrafizei k edw!!   "
             if frameCounter < len(player.videobox) :
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
                     rectPainter.setPen(Qt.blue)
                     rectPainter.drawRect(x,y,w,h)
-                    #rectPainter.setRenderHint(QPainter.Antialiasing)
-        self.vanishBox = False
+                    #player.videobox[frameCounter].removeBox()
 
+        self.vanishBox = False
         if rectPainter.isActive():
             rectPainter.end()
 
     #Mouse callback handling for Boxes
     def mousePressEvent(self,event):
         global start_point
-        global end_point
+        global end_point,removeBool
 
         if player.controlEnabled and QMouseEvent.button(event) == Qt.LeftButton:
              self.eraseRectPos= QMouseEvent.pos(event)
              self.repaint()
         elif QMouseEvent.button(event) == Qt.LeftButton:
             if start_point is True and end_point is True:
-                #self.repaint()
                 pass
             elif start_point is False:
                 QPoint.pos1 = QMouseEvent.pos(event)
                 start_point = True
-                #self.repaint()
             elif end_point is False:
                 QPoint.pos2 = QMouseEvent.pos(event)
                 rect = QRect(QPoint.pos1,QPoint.pos2)
-                self.vanishBox = True
                 end_point = True
-                #self.repaint()
+                self.vanishBox = True
+                self.repaint()
+                self.enableWriteBox = True
                 self.repaint(rect)
-                #self.repaint()
-
+                removeBool = False
+                self.enableWriteBox = False
+                start_point = False
+                end_point = False
 
     def resizeEvent(self, event):
         QWidget.resizeEvent(self, event)
         self.surface.updateVideoRect()
-
+    '''
+    def closeEvent(self,event):
+        print "closeEVENT"
+        writeCSV(self.videobox)
+        pass
+    '''
 
 class VideoPlayer(QWidget):
     def __init__(self, parent=None):
@@ -324,6 +335,7 @@ class VideoPlayer(QWidget):
         self.importCsv = QPushButton("Import CSV...")
         self.openButton.clicked.connect(self.openFile)
         self.importCsv.clicked.connect(self.openCsv)
+        #self.actionExit.triggered.connect(self.close)
 
         self.playButton = QPushButton()
         self.playButton.setEnabled(False)
@@ -465,8 +477,21 @@ class VideoPlayer(QWidget):
         frameCounter = int(round(self.message_count * position/(self.duration * 1000)))
         self.mediaPlayer.setPosition(position)
 
+    def writeCSV(self,videobox):
+        with open('boxes_updated.csv', 'w') as file:
+            csv_writer = csv.writer(file, delimiter='\t')
+            headlines = ['Timestamp','Rect_id', 'Rect_x','Rect_y','Rect_W','Rect_H','Meter_X','Meter_Y','Meter_Z','Top','Height' ,'Distance']
+            csv_writer.writerow(headlines)
+            csv_writer.writerows(i for i in self.videobox)
+            #for row in csv_writer:
+                #self.videobox[]
 
+            pass
 
+    def closeEvent(self,event):
+        print "closeEVENT"
+        self.writeCSV(self.videobox)
+        pass
 
 class boundBox(object):
     def __init__(self,parent=None):
@@ -483,13 +508,13 @@ class boundBox(object):
     def removeBox(self):#,frameCounter):
         self.box_Id[:] = []
         self.box_Param[:] = []
-        pass
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     player = VideoPlayer()
-    player.resize(640,480)
+    player.resize(480,320)
     player.show()
 
     sys.exit(app.exec_())
