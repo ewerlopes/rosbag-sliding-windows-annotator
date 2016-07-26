@@ -64,12 +64,12 @@ def buffer_csv(csv_file):
             csv_reader = csv.reader(file_obj, delimiter = '\t')
             try:
                 index = [x.strip() for x in csv_reader.next()].index('Rect_id')
+                for row in csv_reader:
+                    (rec_id,x, y, width, height) = map(int, row[index:index + 5])
+                    box_buff.append((rec_id,x, y, width, height))
+                return box_buff
             except:
                 return False
-            for row in csv_reader:
-                (rec_id,x, y, width, height) = map(int, row[index:index + 5])
-                box_buff.append((rec_id,x, y, width, height))
-        return box_buff
     else:
         return False
 
@@ -153,9 +153,9 @@ class VideoWidgetSurface(QAbstractVideoSurface):
             return False
         else:
             self.currentFrame = frame
-            self.widget.repaint(self.targetRect)
             frameCounter += 1
             removeBool = True #Removes the boxes on current frame
+            self.widget.repaint(self.targetRect)
             return True
 
     def videoRect(self):
@@ -185,12 +185,7 @@ class VideoWidgetSurface(QAbstractVideoSurface):
             painter.setTransform(oldTransform)
 
             self.currentFrame.unmap()
-    '''
-    def closeEvent(self,event):
-        print "closeEVENT"
-        writeCSV(self.videobox)
-        pass
-    '''
+
 class VideoWidget(QWidget):
 
     def __init__(self, parent=None):
@@ -222,6 +217,7 @@ class VideoWidget(QWidget):
         global end_point
         global frameCounter
         global removeBool
+        global timeId
 
         painter = QPainter(self)
         rectPainter = QPainter(self)
@@ -243,8 +239,8 @@ class VideoWidget(QWidget):
         else:
             painter.fillRect(event.rect(), self.palette().window())
 
+        #If you press control and click, remove the clicked box from the list
         if player.controlEnabled :
-            #print "Mpainei edw"
             posX = self.eraseRectPos.x()
             posY = self.eraseRectPos.y()
             for i in range(len(player.videobox[frameCounter].box_Id)):
@@ -256,7 +252,6 @@ class VideoWidget(QWidget):
                     #player.videobox[frameCounter].removeBox() #CTRL + CLICK removes the box
 
         elif start_point is True and end_point is True: #and player.mediaPlayer.state() == QMediaPlayer.PausedState:
-            #print "Mpainei ree??"
             x = event.rect().x()
             y = event.rect().y()
             w = event.rect().width()
@@ -265,15 +260,16 @@ class VideoWidget(QWidget):
             rectPainter.setRenderHint(QPainter.Antialiasing)
             rectPainter.setPen(Qt.green)
             rectPainter.drawRect(x,y,w,h)
-
+            #Remove old boxes and add the new ones
             if self.enableWriteBox:
                 if removeBool:
+                    timeId = player.videobox[frameCounter].timestamp[0]
                     player.videobox[frameCounter].removeBox() #Deletes all boxes in current frame
-                print player.videobox[frameCounter].box_Id
-                timeId = player.videobox[frameCounter].timestamp[0]
                 boxNumber = len(player.videobox[frameCounter].box_Id)
+                print player.videobox[frameCounter].box_Id,player.videobox[frameCounter].timestamp
+
                 player.videobox[frameCounter].addBox(timeId,[boxNumber,x,y,w,h])
-                print "Boxnumber",boxNumber
+                #print "Boxnumber",boxNumber
 
         elif len(player.videobox) > 0 and not  self.vanishBox: #and  player.mediaPlayer.state() == QMediaPlayer.PlayingState:
             if frameCounter < len(player.videobox) :
@@ -317,12 +313,6 @@ class VideoWidget(QWidget):
     def resizeEvent(self, event):
         QWidget.resizeEvent(self, event)
         self.surface.updateVideoRect()
-    '''
-    def closeEvent(self,event):
-        print "closeEVENT"
-        writeCSV(self.videobox)
-        pass
-    '''
 
 class VideoPlayer(QWidget):
     def __init__(self, parent=None):
@@ -335,7 +325,6 @@ class VideoPlayer(QWidget):
         self.importCsv = QPushButton("Import CSV...")
         self.openButton.clicked.connect(self.openFile)
         self.importCsv.clicked.connect(self.openCsv)
-        #self.actionExit.triggered.connect(self.close)
 
         self.playButton = QPushButton()
         self.playButton.setEnabled(False)
@@ -366,13 +355,6 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.durationChanged.connect(self.durationChanged)
 
     def openFile(self):
-        '''original openfile
-        file_name, _ = QFileDialog.getOpenFileName(self, "Open Movie")
-        if os.path.exists(file_name):
-            self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(file_name)))
-        self.playButton.setEnabled(True)
-        '''
-
         fileName,_ = QFileDialog.getOpenFileName(self, "Open Bag", QDir.currentPath(),"*.bag")
         #fileName, _ = QFileDialog.getOpenFileName(QFileDialog.setDirectory("/home/dimitris/GitProjects/rosbag_annotator/2016-02-12-13-43-37.bag"))
         '''
@@ -387,11 +369,11 @@ class VideoPlayer(QWidget):
         else:
             bag = rosbag.Bag(fileName)
 
-        #Get bag metadata
+            #Get bag metadata
             (self.message_count,self.duration,compressed, framerate) = get_bag_metadata(bag)
-        #Buffer the rosbag, boxes, timestamps
+            #Buffer the rosbag, boxes, timestamps
             (self.image_buff, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
-        #print len(self.image_buff)
+            #print len(self.image_buff)
             fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
             height, width, bytesPerComponent = self.image_buff[0].shape
             video_writer = cv2.VideoWriter("myvid.avi", fourcc, framerate, (width,height), cv2.IMREAD_COLOR)
@@ -419,11 +401,6 @@ class VideoPlayer(QWidget):
         #if !fileName :
         print fileName
 
-        '''
-        if not fileName.lower().endswith('.csv'):
-            raise ValueError("Could not open csv file")
-        print("Csv file loaded")
-        '''
         box_buff = buffer_csv(fileName)
         if not box_buff :
             msgBox = QMessageBox()
@@ -447,7 +424,6 @@ class VideoPlayer(QWidget):
     def play(self):
         if self.mediaPlayer.state() == QMediaPlayer.PlayingState:
             self.mediaPlayer.pause()
-            self.repaint()
         else:
             self.mediaPlayer.play()
 
@@ -478,20 +454,33 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.setPosition(position)
 
     def writeCSV(self,videobox):
+        list_insert_time = []
+        list_insert_box = []
+        list_insert_param_1 = []
+        list_insert_param_2 = []
+        list_insert_param_3 = []
+        list_insert_param_4 = []
+        for i in self.videobox:
+            for j in i.timestamp:
+                list_insert_time.append(j)
+            for k in i.box_Id:
+                list_insert_box.append(k)
+            for l in i.box_Param:
+                list_insert_param_1.append(l[0])
+                list_insert_param_2.append(l[1])
+                list_insert_param_3.append(l[2])
+                list_insert_param_4.append(l[3])
+
+
         with open('boxes_updated.csv', 'w') as file:
             csv_writer = csv.writer(file, delimiter='\t')
             headlines = ['Timestamp','Rect_id', 'Rect_x','Rect_y','Rect_W','Rect_H','Meter_X','Meter_Y','Meter_Z','Top','Height' ,'Distance']
             csv_writer.writerow(headlines)
-            csv_writer.writerows(i for i in self.videobox)
-            #for row in csv_writer:
-                #self.videobox[]
-
-            pass
+            rows = zip(list_insert_time,list_insert_box,list_insert_param_1,list_insert_param_2,list_insert_param_3,list_insert_param_4)
+            csv_writer.writerows(rows)
 
     def closeEvent(self,event):
-        print "closeEVENT"
         self.writeCSV(self.videobox)
-        pass
 
 class boundBox(object):
     def __init__(self,parent=None):
@@ -506,6 +495,7 @@ class boundBox(object):
         self.box_Param.append(key[1:])
 
     def removeBox(self):#,frameCounter):
+        self.timestamp[:] = []
         self.box_Id[:] = []
         self.box_Param[:] = []
 
