@@ -201,14 +201,39 @@ class VideoWidget(QWidget):
         self.surface = VideoWidgetSurface(self)
         self.vanishBox = False
         self.enableWriteBox = False
+        self.annotEnabled = False
 
     def videoSurface(self):
         return self.surface
-    '''
-    def closeEvent(self, event):
-        print "closeEVENT"
-        del self.surface
-    '''
+
+    #Shows the right click menu
+    def contextMenuEvent(self,event):
+        if event.reason() == QContextMenuEvent.Mouse:
+            print "handlee"
+            self.annotEnabled = True
+            #self.update()
+            menu = QMenu(self);
+            sit = menu.addAction('Sitting');
+            walk = menu.addAction('Walking');
+            stand = menu.addAction('Standing');
+            clear = menu.addAction('Clear')
+            action = menu.exec_(self.mapToGlobal(event.pos()))
+            #menu.exec_(event.globalPos());
+            if action == sit:
+                self.annotClass = 'Sit' #Qt.magenda
+            elif action == walk:
+                self.annotClass = 'Walk' #Qt.yellow
+            elif action == stand:
+                self.annotClass = 'Stand' #Qt.cyan
+            elif action == clear:
+                self.annotClass = 'Clear' #Qt.blue
+
+            self.posX_annot = event.pos().x()
+            self.posY_annot = event.pos().y()
+            self.repaint()
+
+        self.annotEnabled = False
+
     def sizeHint(self):
         return self.surface.surfaceFormat().sizeHint()
 
@@ -239,6 +264,7 @@ class VideoWidget(QWidget):
         else:
             painter.fillRect(event.rect(), self.palette().window())
 
+        #self.annotEnabled = False
         #If you press control and click, remove the clicked box from the list
         if player.controlEnabled :
             posX = self.eraseRectPos.x()
@@ -250,6 +276,26 @@ class VideoWidget(QWidget):
                     rectPainter.setPen(Qt.red)
                     rectPainter.drawRect(x,y,w,h)
                     #player.videobox[frameCounter].removeBox() #CTRL + CLICK removes the box
+        #Enabled when annotating
+        elif self.annotEnabled:
+            for i in range(len(player.videobox[frameCounter].box_Id)):
+                x,y,w,h = player.videobox[frameCounter].box_Param[i]
+                print self.posX_annot,self.posY_annot
+                if self.posX_annot > x and self.posX_annot < (x+w) and self.posY_annot > y and self.posY_annot < (y+h):
+                    rectPainter.setRenderHint(QPainter.Antialiasing)
+                    rectPainter.setPen(Qt.magenta)
+                    rectPainter.drawRect(x,y,w,h)
+                    player.videobox[frameCounter].changeClass(i,self.annotClass)
+                    box = i
+                    self.frameNumber = frameCounter+1 #Begin annotate from the next frame
+                    break
+            while self.frameNumber < player.message_count-1:
+                if box > len(player.videobox[frameCounter].box_Id)-1:
+                    break
+                print len(player.videobox[frameCounter].box_Id)
+                print box
+                player.videobox[self.frameNumber].changeClass(box,self.annotClass)
+                self.frameNumber += 1
 
         elif start_point is True and end_point is True: #and player.mediaPlayer.state() == QMediaPlayer.PausedState:
             x = event.rect().x()
@@ -265,14 +311,13 @@ class VideoWidget(QWidget):
                 if removeBool:
                     timeId = player.videobox[frameCounter].timestamp[0]
                     player.videobox[frameCounter].removeBox() #Deletes all boxes in current frame
+
                 boxNumber = len(player.videobox[frameCounter].box_Id)
                 print player.videobox[frameCounter].box_Id,player.videobox[frameCounter].timestamp
-
-                player.videobox[frameCounter].addBox(timeId,[boxNumber,x,y,w,h])
+                player.videobox[frameCounter].addBox(timeId,[boxNumber,x,y,w,h],'Clear')
                 #print "Boxnumber",boxNumber
-
-        elif len(player.videobox) > 0 and not  self.vanishBox: #and  player.mediaPlayer.state() == QMediaPlayer.PlayingState:
-            if frameCounter < len(player.videobox) :
+        #Play the bound boxes from csv
+        elif len(player.videobox) > 0 and not  self.vanishBox:
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
                     rectPainter.setPen(Qt.blue)
@@ -309,6 +354,7 @@ class VideoWidget(QWidget):
                 self.enableWriteBox = False
                 start_point = False
                 end_point = False
+            #elif QMouseEvent.button(event) == Qt.RightButton:
 
     def resizeEvent(self, event):
         QWidget.resizeEvent(self, event)
@@ -417,9 +463,9 @@ class VideoPlayer(QWidget):
             for idx,key in enumerate(self.box_buffer):
                 if key[0] == 0:
                     counter += 1
-                    self.videobox[counter].addBox(self.time_buff[counter],key)
+                    self.videobox[counter].addBox(self.time_buff[counter],key,'Clear')
                 else:
-                    self.videobox[counter].addBox(self.time_buff[counter],key)
+                    self.videobox[counter].addBox(self.time_buff[counter],key,'Clear')
 
     def play(self):
         if self.mediaPlayer.state() == QMediaPlayer.PlayingState:
@@ -453,6 +499,7 @@ class VideoPlayer(QWidget):
         frameCounter = int(round(self.message_count * position/(self.duration * 1000)))
         self.mediaPlayer.setPosition(position)
 
+    #Writes the boxes to csv
     def writeCSV(self,videobox):
         list_insert_time = []
         list_insert_box = []
@@ -460,6 +507,8 @@ class VideoPlayer(QWidget):
         list_insert_param_2 = []
         list_insert_param_3 = []
         list_insert_param_4 = []
+        list_insert_class = []
+
         for i in self.videobox:
             for j in i.timestamp:
                 list_insert_time.append(j)
@@ -470,13 +519,14 @@ class VideoPlayer(QWidget):
                 list_insert_param_2.append(l[1])
                 list_insert_param_3.append(l[2])
                 list_insert_param_4.append(l[3])
-
+            for key in i.annotation:
+                list_insert_class.append(key)
 
         with open('boxes_updated.csv', 'w') as file:
             csv_writer = csv.writer(file, delimiter='\t')
-            headlines = ['Timestamp','Rect_id', 'Rect_x','Rect_y','Rect_W','Rect_H','Meter_X','Meter_Y','Meter_Z','Top','Height' ,'Distance']
+            headlines = ['Timestamp','Rect_id', 'Rect_x','Rect_y','Rect_W','Rect_H','Class','Meter_X','Meter_Y','Meter_Z','Top','Height' ,'Distance']
             csv_writer.writerow(headlines)
-            rows = zip(list_insert_time,list_insert_box,list_insert_param_1,list_insert_param_2,list_insert_param_3,list_insert_param_4)
+            rows = zip(list_insert_time,list_insert_box,list_insert_param_1,list_insert_param_2,list_insert_param_3,list_insert_param_4,list_insert_class)
             csv_writer.writerows(rows)
 
     def closeEvent(self,event):
@@ -488,17 +538,22 @@ class boundBox(object):
         self.timestamp = []
         self.box_Id = []
         self.box_Param = []
+        self.annotation = []
 
-    def addBox(self,time,key):
+    def addBox(self,time,key,classify):
         self.timestamp.append(time)
         self.box_Id.append(key[0])
         self.box_Param.append(key[1:])
+        self.annotation.append(classify)
 
     def removeBox(self):#,frameCounter):
         self.timestamp[:] = []
         self.box_Id[:] = []
         self.box_Param[:] = []
+        self.annotation[:] = []
 
+    def changeClass(self,boxid,classify):
+        self.annotation[boxid] = classify
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
