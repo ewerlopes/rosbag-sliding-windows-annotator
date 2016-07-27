@@ -16,6 +16,7 @@ import rosbag
 import argparse
 import textwrap
 import rospy
+import json
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge, CvBridgeError
@@ -64,14 +65,17 @@ def buffer_csv(csv_file):
             csv_reader = csv.reader(file_obj, delimiter = '\t')
             try:
                 index = [x.strip() for x in csv_reader.next()].index('Rect_id')
+                print index
                 for row in csv_reader:
                     (rec_id,x, y, width, height) = map(int, row[index:index + 5])
                     box_buff.append((rec_id,x, y, width, height))
-                return box_buff
             except:
-                return False
+                print "Malakiaa egine"
+                return False#,False
+            return box_buff
     else:
-        return False
+        print "file error"
+        return False#,False
 
 
 def get_bag_metadata(bag):
@@ -202,6 +206,8 @@ class VideoWidget(QWidget):
         self.vanishBox = False
         self.enableWriteBox = False
         self.annotEnabled = False
+        self.annotColor = Qt.blue
+        self.deleteEnabled = False
 
     def videoSurface(self):
         return self.surface
@@ -209,29 +215,34 @@ class VideoWidget(QWidget):
     #Shows the right click menu
     def contextMenuEvent(self,event):
         if event.reason() == QContextMenuEvent.Mouse:
-            print "handlee"
             self.annotEnabled = True
-            #self.update()
-            menu = QMenu(self);
-            sit = menu.addAction('Sitting');
-            walk = menu.addAction('Walking');
-            stand = menu.addAction('Standing');
+            menu = QMenu(self)
             clear = menu.addAction('Clear')
+            for i in player.json_Labels:
+                menu.addAction(i)
+            deleteBox = menu.addAction('Delete Box');
             action = menu.exec_(self.mapToGlobal(event.pos()))
-            #menu.exec_(event.globalPos());
+            if action == deleteBox:
+                self.deleteEnabled = True
+            '''
             if action == sit:
-                self.annotClass = 'Sit' #Qt.magenda
+                self.annotClass = 'Sit' #Qt.magenta
+                self.annotColor = Qt.magenta
             elif action == walk:
                 self.annotClass = 'Walk' #Qt.yellow
+                self.annotColor = Qt.yellow
             elif action == stand:
                 self.annotClass = 'Stand' #Qt.cyan
+                self.annotColor = Qt.cyan
             elif action == clear:
                 self.annotClass = 'Clear' #Qt.blue
-
+                self.annotColor = Qt.blue
+            '''
             self.posX_annot = event.pos().x()
             self.posY_annot = event.pos().y()
             self.repaint()
 
+        self.deleteEnabled = False
         self.annotEnabled = False
 
     def sizeHint(self):
@@ -249,10 +260,8 @@ class VideoWidget(QWidget):
 
         if not rectPainter.isActive() :
             rectPainter.begin(self)
-            #rectPainter.setRenderHint(QPainter.Antialiasing)
 
         if (self.surface.isActive()):
-            #print "Test surface"
             videoRect = QRegion(self.surface.videoRect())
             if not videoRect.contains(event.rect()):
                 region = event.region()
@@ -263,8 +272,7 @@ class VideoWidget(QWidget):
             self.surface.paint(painter)
         else:
             painter.fillRect(event.rect(), self.palette().window())
-
-        #self.annotEnabled = False
+        '''
         #If you press control and click, remove the clicked box from the list
         if player.controlEnabled :
             posX = self.eraseRectPos.x()
@@ -275,52 +283,63 @@ class VideoWidget(QWidget):
                     rectPainter.setRenderHint(QPainter.Antialiasing)
                     rectPainter.setPen(Qt.red)
                     rectPainter.drawRect(x,y,w,h)
-                    #player.videobox[frameCounter].removeBox() #CTRL + CLICK removes the box
+                    timeId = player.videobox[frameCounter].timestamp[0]
+                    player.videobox[frameCounter].removeBox() #CTRL + CLICK removes the box
+        '''
+        if self.deleteEnabled:
+            for i in range(len(player.videobox[frameCounter].box_Id)):
+                x,y,w,h = player.videobox[frameCounter].box_Param[i]
+                if self.posX_annot > x and self.posX_annot < (x+w) and self.posY_annot > y and self.posY_annot < (y+h):
+                    rectPainter.setRenderHint(QPainter.Antialiasing)
+                    rectPainter.setPen(Qt.red)
+                    rectPainter.drawRect(x,y,w,h)
+                    player.videobox[frameCounter].removeSpecBox(i)
+
         #Enabled when annotating
         elif self.annotEnabled:
             for i in range(len(player.videobox[frameCounter].box_Id)):
                 x,y,w,h = player.videobox[frameCounter].box_Param[i]
-                print self.posX_annot,self.posY_annot
                 if self.posX_annot > x and self.posX_annot < (x+w) and self.posY_annot > y and self.posY_annot < (y+h):
                     rectPainter.setRenderHint(QPainter.Antialiasing)
-                    rectPainter.setPen(Qt.magenta)
+                    rectPainter.setPen(self.annotColor)
                     rectPainter.drawRect(x,y,w,h)
                     player.videobox[frameCounter].changeClass(i,self.annotClass)
                     box = i
                     self.frameNumber = frameCounter+1 #Begin annotate from the next frame
                     break
-            while self.frameNumber < player.message_count-1:
-                if box > len(player.videobox[frameCounter].box_Id)-1:
+            while self.frameNumber < len(player.time_buff):
+                if box >= len(player.videobox[frameCounter].box_Id):
                     break
-                print len(player.videobox[frameCounter].box_Id)
-                print box
                 player.videobox[self.frameNumber].changeClass(box,self.annotClass)
                 self.frameNumber += 1
 
-        elif start_point is True and end_point is True: #and player.mediaPlayer.state() == QMediaPlayer.PausedState:
+        elif start_point is True and end_point is True:
             x = event.rect().x()
             y = event.rect().y()
             w = event.rect().width()
             h = event.rect().height()
 
             rectPainter.setRenderHint(QPainter.Antialiasing)
-            rectPainter.setPen(Qt.green)
+            rectPainter.setPen(Qt.blue)
             rectPainter.drawRect(x,y,w,h)
             #Remove old boxes and add the new ones
             if self.enableWriteBox:
                 if removeBool:
-                    timeId = player.videobox[frameCounter].timestamp[0]
-                    player.videobox[frameCounter].removeBox() #Deletes all boxes in current frame
+                    try:
+                        timeId = player.videobox[frameCounter].timestamp[0] #Keep the timestamp to add the new box
+                    except:
+                        pass
+                    player.videobox[frameCounter].removeAllBox() #Deletes all boxes in current frame
 
                 boxNumber = len(player.videobox[frameCounter].box_Id)
                 print player.videobox[frameCounter].box_Id,player.videobox[frameCounter].timestamp
                 player.videobox[frameCounter].addBox(timeId,[boxNumber,x,y,w,h],'Clear')
-                #print "Boxnumber",boxNumber
+
         #Play the bound boxes from csv
-        elif len(player.videobox) > 0 and not  self.vanishBox:
+        elif len(player.videobox) > 0 and frameCounter < len(player.time_buff) and not  self.vanishBox:
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
-                    rectPainter.setPen(Qt.blue)
+                    rectPainter.setPen(self.annotColor)
                     rectPainter.drawRect(x,y,w,h)
                     #player.videobox[frameCounter].removeBox()
 
@@ -354,7 +373,6 @@ class VideoWidget(QWidget):
                 self.enableWriteBox = False
                 start_point = False
                 end_point = False
-            #elif QMouseEvent.button(event) == Qt.RightButton:
 
     def resizeEvent(self, event):
         QWidget.resizeEvent(self, event)
@@ -402,60 +420,48 @@ class VideoPlayer(QWidget):
 
     def openFile(self):
         fileName,_ = QFileDialog.getOpenFileName(self, "Open Bag", QDir.currentPath(),"*.bag")
-        #fileName, _ = QFileDialog.getOpenFileName(QFileDialog.setDirectory("/home/dimitris/GitProjects/rosbag_annotator/2016-02-12-13-43-37.bag"))
-        '''
-        if  fileName is True:
-            QMessageBox.warning(self,"Error Opening Bag file")
-        '''
-        if not fileName :
-            msgBox = QMessageBox()
-            msgBox.setText("Error Opening Bag file, please try again")
-            msgBox.resize(100,40)
-            msgBox.exec_()
+
+        if not fileName:
+            pass
         else:
-            bag = rosbag.Bag(fileName)
+            try:
+                bag = rosbag.Bag(fileName)
+            except:
+                self.errorMessages(0)
 
             #Get bag metadata
             (self.message_count,self.duration,compressed, framerate) = get_bag_metadata(bag)
             #Buffer the rosbag, boxes, timestamps
             (self.image_buff, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
-            #print len(self.image_buff)
             fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
             height, width, bytesPerComponent = self.image_buff[0].shape
             video_writer = cv2.VideoWriter("myvid.avi", fourcc, framerate, (width,height), cv2.IMREAD_COLOR)
 
             if not video_writer.isOpened():
-                raise ValueError("Video writer could not initialize, probably wrong file extension or path given")
+                self.errorMessages(2)
             else:
                 print("Video initialized")
-            for frame in self.image_buff:
-                video_writer.write(frame)
-            video_writer.release()
+                for frame in self.image_buff:
+                    video_writer.write(frame)
+                video_writer.release()
 
-            #if fileName != '':
-            self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile("/home/dimitris/GitProjects/rosbag_annotator/myvid.avi")))
-            #self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(QFileInfo(fileUrl).absoluteFilePath())))
-            #print QFileInfo(fileUrl).absoluteFilePath()
-            self.playButton.setEnabled(True)
-            #return self.time_buff, self.box_buff
+                self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile("/home/dimitris/GitProjects/rosbag_annotator/myvid.avi")))
+                #self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(QFileInfo(fileUrl).absoluteFilePath())))
+                #print QFileInfo(fileUrl).absoluteFilePath()
+                self.playButton.setEnabled(True)
 
     #Open CSV file
     def openCsv(self):
+        self.json_Labels = []
         fileName,_ =  QFileDialog.getOpenFileName(self, "Open Csv ", QDir.currentPath(),"*.csv")
-        #QFileDialog.setNameFilter("*.csv")
-        #fileName,_ =  QFileDialog.getOpenFileName(QUrl.fromLocalFile("/home/dimitris/GitProjects/rosbag_annotator/2016-02-12-13-43-37.csv"))
-        #if !fileName :
-        print fileName
-
+        #print type(fileName)
         box_buff = buffer_csv(fileName)
-        if not box_buff :
-            msgBox = QMessageBox()
-            msgBox.setText("Error occured: Please check CSV file ")
-            msgBox.resize(100,40)
-            msgBox.exec_()
-        else:#transform to a list of lists
-            self.box_buffer = [list(elem) for elem in box_buff]
 
+        if not box_buff :
+            print type(box_buff)
+            self.errorMessages(1)
+        else:
+            self.box_buffer = [list(elem) for elem in box_buff]
             #Initialize objects which are equal to frames
             self.videobox = [boundBox(count) for count in range(len(self.time_buff))]
             #Frame counter initialize
@@ -466,6 +472,33 @@ class VideoPlayer(QWidget):
                     self.videobox[counter].addBox(self.time_buff[counter],key,'Clear')
                 else:
                     self.videobox[counter].addBox(self.time_buff[counter],key,'Clear')
+            #Parse json file
+            try:
+                self.json_Labels = self.parseJson()
+            except:
+                self.errorMessages(3)
+
+    def parseJson(self):
+        with open("labels.json") as json_file:
+                json_data = json.load(json_file)
+                json_label = []
+                print json_data
+                for i in json_data['labels'] :
+                    json_label.append(i)
+        return json_label
+
+    def errorMessages(self,index):
+        msgBox = QMessageBox()
+        if index == 0:
+            msgBox.setText("Error: Incorrect Bag File")
+        elif index == 1:
+            msgBox.setText("Error occured: Please check CSV file")
+        elif index == 2:
+            msgBox.setText("Error: Video could not initialized")
+        elif index == 3:
+            msgBox.setText("Error: Json file path error")
+        msgBox.resize(100,40)
+        msgBox.exec_()
 
     def play(self):
         if self.mediaPlayer.state() == QMediaPlayer.PlayingState:
@@ -546,14 +579,22 @@ class boundBox(object):
         self.box_Param.append(key[1:])
         self.annotation.append(classify)
 
-    def removeBox(self):#,frameCounter):
+    def removeAllBox(self):#,frameCounter):
         self.timestamp[:] = []
         self.box_Id[:] = []
         self.box_Param[:] = []
         self.annotation[:] = []
 
+    def removeSpecBox(self,boxid):
+        self.timestamp.pop(boxid)
+        self.box_Id.pop(boxid)
+        self.box_Param.pop(boxid)
+        self.annotation.pop(boxid)
+
     def changeClass(self,boxid,classify):
-        self.annotation[boxid] = classify
+        if boxid  < len(self.annotation):
+            self.annotation.pop(boxid)
+        self.annotation.insert(boxid,classify)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
