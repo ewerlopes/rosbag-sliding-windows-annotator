@@ -65,6 +65,7 @@ def buffer_csv(csv_file):
             csv_reader = csv.reader(file_obj, delimiter = '\t')
             try:
                 index = [x.strip() for x in csv_reader.next()].index('Rect_id')
+                #index2 = [x.strip() for x in csv_reader.next()].index('Meter_X')
                 for row in csv_reader:
                     (rec_id,x, y, width, height) = map(int, row[index:index + 5])
                     box_buff.append((rec_id,x, y, width, height))
@@ -149,6 +150,7 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         if (self.surfaceFormat().pixelFormat() != frame.pixelFormat() or self.surfaceFormat().frameSize() != frame.size()):
             self.setError(QAbstractVideoSurface.IncorrectFormatError)
             self.stop()
+            #frameCounter = 0
             return False
         else:
             self.currentFrame = frame
@@ -211,6 +213,8 @@ class VideoWidget(QWidget):
 
     #Shows the right click menu
     def contextMenuEvent(self,event):
+        global posX
+        global posY
         if event.reason() == QContextMenuEvent.Mouse:
             menu = QMenu(self)
             clear = menu.addAction('Clear')
@@ -219,6 +223,7 @@ class VideoWidget(QWidget):
 
             deleteBox = menu.addAction('Delete Box')
             deleteAllBoxes = menu.addAction('Delete All Boxes')
+            changeId = menu.addAction('Change Id')
             cancel = menu.addAction('Cancel')
             action = menu.exec_(self.mapToGlobal(event.pos()))
             for i,key in enumerate(self.buttonLabels):
@@ -229,11 +234,20 @@ class VideoWidget(QWidget):
                 self.deleteEnabled = True
             elif action ==  deleteAllBoxes:
                 self.deleteAllBoxes = True
+            elif action == changeId:
+                #call the textbox
+                self.newBoxId = textBox()
+                self.newBoxId.setGeometry(QRect(500, 100, 300, 100))
+                self.newBoxId.show()
             elif action == cancel:
                 pass
 
             self.posX_annot = event.pos().x()
             self.posY_annot = event.pos().y()
+
+            posX = event.pos().x()
+            posY = event.pos().y()
+
             self.repaint()
             self.buttonLabels = []
         #self.deleteAllBoxes = False
@@ -349,27 +363,12 @@ class VideoWidget(QWidget):
                     boxNumber = len(player.videobox[frameCounter].box_Id)
                     player.videobox[frameCounter].addBox(timeId,[boxNumber,x,y,w,h],'Clear')
                     self.enableWriteBox = False
-                #Remove old boxes and add the new ones
-                #if self.enableWriteBox:
-                    #Keep the last timestamp of the frame
-                  #  if removeBool:
-
-                #else:
-                    #No boxes at this frame (Handle)
 
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
                     rectPainter.setRenderHint(QPainter.Antialiasing)
                     rectPainter.setPen(Qt.blue)
                     rectPainter.drawRect(x,y,w,h)
-                    '''
-                    if self.enableWriteBox:
-                        boxNumber = len(player.videobox[frameCounter].box_Id)
-                        print "GRAfei to box??"
-                        player.videobox[frameCounter].addBox(timeId,[boxNumber,x,y,w,h],'Clear')
-                        self.enableWriteBox = False
-                    '''
-                #print "Kainourgio box length",len(player.videobox[frameCounter].box_Id)
 
         #Play the bound boxes from csv
         elif len(player.videobox) > 0 and frameCounter < len(player.time_buff):# and not self.vanishBox:
@@ -404,14 +403,88 @@ class VideoWidget(QWidget):
                 self.repaint()
                 self.enableWriteBox = True
                 self.repaint(rect)
-                #self.enableWriteBox = False
-                #self.deleteEnabled = False
+
                 start_point = False
                 end_point = False
 
     def resizeEvent(self, event):
         QWidget.resizeEvent(self, event)
         self.surface.updateVideoRect()
+
+class textBox(QWidget):
+
+    def __init__(self):
+        global frameCounter
+        global posX
+        global posY
+       #global fig, chartFig
+
+        QWidget.__init__(self)
+        self.setWindowTitle('Set Box id')
+        self.main_widget = QWidget(self)
+        self.boxId = QLineEdit(self)
+        self.Ok = QPushButton("Ok", self)
+        #self.show()
+
+    def paintEvent(self, event):
+        self.boxId.setPlaceholderText('Box Id:')
+        self.boxId.setMinimumWidth(100)
+        self.boxId.setEnabled(True)
+
+        self.boxId.move(90, 15)
+        self.Ok.move(115, 60)
+
+        self.boxId.textChanged.connect(self.boxChanged)
+        self.Ok.clicked.connect(self.closeTextBox)
+
+        self.Ok.show()
+        self.boxId.show()
+
+    def boxChanged(self,text):
+        #global text_
+        #print "mpanei otan vazw arithmo"
+        self.box_Idx = text
+
+    def closeTextBox(self):
+        #self.text
+        #global fig, chartFig
+        try:
+            self.box_Idx = int(self.box_Idx)
+        except:
+            msgBox = QMessageBox()
+            msgBox.setText("Wrong type, integer expected")
+            msgBox.resize(100,40)
+            msgBox.exec_()
+
+        #Check id
+        for i in range(len(player.videobox[frameCounter].box_Id)):
+            if self.box_Idx == player.videobox[frameCounter].box_Id[i]:
+                #Box Id already given
+                msgBox = QMessageBox()
+                msgBox.setText("Box Id already given")
+                msgBox.resize(100,40)
+                msgBox.exec_()
+
+        for i in range(len(player.videobox[frameCounter].box_Id)):
+            x,y,w,h = player.videobox[frameCounter].box_Param[i]
+            if posX > x and posX  < (x+w) and posY > y and posY < (y+h):
+                old_value = player.videobox[frameCounter].box_Id[i]
+                player.videobox[frameCounter].box_Id[i] = self.box_Idx
+                self.writeEnable = True
+                self.frameNumber = frameCounter
+                old_index = i
+                break
+
+        if self.writeEnable:
+            while self.frameNumber < len(player.time_buff):
+                #for j  in range(len(player.videobox[self.frameNumber].box_Id[i])):
+                if old_value in player.videobox[self.frameNumber].box_Id:
+                    player.videobox[self.frameNumber].box_Id[old_index] = self.box_Idx
+                self.frameNumber += 1
+            self.writeEnable = False
+        #text_ = 'Speech::' + self.boxId.text()
+        self.Ok.clicked.disconnect()
+        self.close()
 
 class VideoPlayer(QWidget):
     def __init__(self, parent=None):
@@ -505,7 +578,7 @@ class VideoPlayer(QWidget):
                     self.videobox[counter].addBox(self.time_buff[counter],key,'Clear')
             #Parse json file
             try:
-                self.json_Labels = self.parseJson()
+                self.json_Labels,self.json_Colors = self.parseJson()
             except:
                 self.errorMessages(3)
 
@@ -515,7 +588,12 @@ class VideoPlayer(QWidget):
                 json_label = []
                 for i in json_data['labels'] :
                     json_label.append(i)
-        return json_label
+        with open("colors.json") as js_f:
+            js_obj = json.load(js_f)
+            js_colors = []
+            for color in js_obj['colors']:
+                js_colors.append(color)
+        return json_label,js_colors
 
     def errorMessages(self,index):
         msgBox = QMessageBox()
@@ -527,6 +605,10 @@ class VideoPlayer(QWidget):
             msgBox.setText("Error: Video could not initialized")
         elif index == 3:
             msgBox.setText("Error: Json file path error")
+        elif index == 4:
+            msgBox.setText("Not integer type")
+        elif index == 5:
+            msgBox.setText("Box id already given")
         msgBox.resize(100,40)
         msgBox.exec_()
 
