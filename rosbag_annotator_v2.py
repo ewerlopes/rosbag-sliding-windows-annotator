@@ -247,7 +247,6 @@ class VideoWidget(QWidget):
         global start_point
         global end_point
         global frameCounter
-        global removeBool
         global timeId
 
         painter = QPainter(self)
@@ -281,7 +280,7 @@ class VideoWidget(QWidget):
                     timeId = player.videobox[frameCounter].timestamp[0]
                     player.videobox[frameCounter].removeBox() #CTRL + CLICK removes the box
         '''
-        if self.deleteEnabled:
+        '''
             if start_point is True and end_point is True:
                 print "Mpike sto deleteEnable start end"
                 x = event.rect().x()
@@ -308,28 +307,37 @@ class VideoWidget(QWidget):
                         #player.videobox[frameCounter].removeAllBox() #Deletes all boxes in current frame
                     boxNumber = len(player.videobox[frameCounter].box_Id)
                     player.videobox[frameCounter].addBox(timeId,[boxNumber,x,y,w,h],'Clear')
-            else:
-                for i in range(len(player.videobox[frameCounter].box_Id)):
-                    x,y,w,h = player.videobox[frameCounter].box_Param[i]
-                    if self.posX_annot > x and self.posX_annot < (x+w) and self.posY_annot > y and self.posY_annot < (y+h):
+        '''
+
+        if self.deleteEnabled:
+            for i in range(len(player.videobox[frameCounter].box_Id)):
+                print len(player.videobox[frameCounter].box_Param[i])
+                x,y,w,h = player.videobox[frameCounter].box_Param[i]
+                if self.posX_annot > x and self.posX_annot < (x+w) and self.posY_annot > y and self.posY_annot < (y+h):
+                    rectPainter.setRenderHint(QPainter.Antialiasing)
+                    rectPainter.setPen(Qt.red)
+                    rectPainter.drawRect(x,y,w,h)
+                    timeId = player.videobox[frameCounter].timestamp[0]
+                    player.videobox[frameCounter].removeSpecBox(i)
+                    for i in range(len(player.videobox[frameCounter].box_Id)):
+                        x,y,w,h = player.videobox[frameCounter].box_Param[i]
                         rectPainter.setRenderHint(QPainter.Antialiasing)
-                        rectPainter.setPen(Qt.red)
+                        rectPainter.setPen(self.annotColor)
                         rectPainter.drawRect(x,y,w,h)
-                        timeId = player.videobox[frameCounter].timestamp[0]
-                        player.videobox[frameCounter].removeSpecBox(i)
-                        for i in range(len(player.videobox[frameCounter].box_Id)):
-                            x,y,w,h = player.videobox[frameCounter].box_Param[i]
-                            rectPainter.setRenderHint(QPainter.Antialiasing)
-                            rectPainter.setPen(self.annotColor)
-                            rectPainter.drawRect(x,y,w,h)
             self.deleteEnabled = False
 
         elif self.deleteAllBoxes:
             timeId = player.videobox[frameCounter].timestamp[0]
+            for i in range(len(player.videobox[frameCounter].box_Id)):
+                    x,y,w,h = player.videobox[frameCounter].box_Param[i]
+                    rectPainter.setPen(Qt.red)
+                    rectPainter.drawRect(x,y,w,h)
             player.videobox[frameCounter].removeAllBox() #Deletes all boxes in current framerate
             self.deleteAllBoxes = False
         #Enabled when annotating
         elif self.annotEnabled:
+            #print "Mpike gia annotation length",len(player.videobox[frameCounter].box_Id)
+            self.frameNumber = frameCounter
             for i in range(len(player.videobox[frameCounter].box_Id)):
                 x,y,w,h = player.videobox[frameCounter].box_Param[i]
                 if self.posX_annot > x and self.posX_annot < (x+w) and self.posY_annot > y and self.posY_annot < (y+h):
@@ -338,9 +346,12 @@ class VideoWidget(QWidget):
                     rectPainter.drawRect(x,y,w,h)
                     player.videobox[frameCounter].changeClass(i,self.annotClass)
                     box = i
-                    self.frameNumber = frameCounter+1 #Begin annotate from the next frame
-                    break
-                    #print "something"
+                else:
+                    for i in range(len(player.videobox[frameCounter].box_Id)):
+                        rectPainter.setRenderHint(QPainter.Antialiasing)
+                        rectPainter.setPen(self.annotColor)
+                        rectPainter.drawRect(x,y,w,h)
+            #Annotate the box at remaining frames
             while self.frameNumber < len(player.time_buff):
                 if box >= len(player.videobox[self.frameNumber].box_Id):
                     break
@@ -356,26 +367,39 @@ class VideoWidget(QWidget):
                 rectPainter.setRenderHint(QPainter.Antialiasing)
                 rectPainter.setPen(Qt.blue)
                 rectPainter.drawRect(x,y,w,h)
-                #Remove old boxes and add the new ones
+
+                #Keep the timestamp to add the new box
+                if  len(player.videobox[frameCounter].timestamp):
+                    timeId = player.videobox[frameCounter].timestamp[0]
+
                 if self.enableWriteBox:
+                    boxNumber = len(player.videobox[frameCounter].box_Id)
+                    player.videobox[frameCounter].addBox(timeId,[boxNumber,x,y,w,h],'Clear')
+                    self.enableWriteBox = False
+                #Remove old boxes and add the new ones
+                #if self.enableWriteBox:
                     #Keep the last timestamp of the frame
-                    if removeBool:
-                        try:
-                            timeId = player.videobox[frameCounter].timestamp[0] #Keep the timestamp to add the new box
-                        except:
-                            pass
-                        #player.videobox[frameCounter].removeAllBox() #Deletes all boxes in current frame
+                  #  if removeBool:
+
+                #else:
+                    #No boxes at this frame (Handle)
+
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
-                    #if self.posX_annot > x and self.posX_annot < (x+w) and self.posY_annot > y and self.posY_annot < (y+h):
                     rectPainter.setRenderHint(QPainter.Antialiasing)
-                    rectPainter.setPen(self.annotColor)
+                    rectPainter.setPen(Qt.blue)
                     rectPainter.drawRect(x,y,w,h)
-                    #boxNumber = len(player.videobox[frameCounter].box_Id)
-                    #player.videobox[frameCounter].addBox(timeId,[boxNumber,x,y,w,h],'Clear')
+                    '''
+                    if self.enableWriteBox:
+                        boxNumber = len(player.videobox[frameCounter].box_Id)
+                        print "GRAfei to box??"
+                        player.videobox[frameCounter].addBox(timeId,[boxNumber,x,y,w,h],'Clear')
+                        self.enableWriteBox = False
+                    '''
+                #print "Kainourgio box length",len(player.videobox[frameCounter].box_Id)
 
         #Play the bound boxes from csv
-        elif len(player.videobox) > 0 and frameCounter < len(player.time_buff) and not  self.vanishBox:
+        elif len(player.videobox) > 0 and frameCounter < len(player.time_buff):# and not self.vanishBox:
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
                     rectPainter.setPen(self.annotColor)
@@ -388,7 +412,7 @@ class VideoWidget(QWidget):
     #Mouse callback handling for Boxes
     def mousePressEvent(self,event):
         global start_point
-        global end_point,removeBool
+        global end_point
 
         if player.controlEnabled and QMouseEvent.button(event) == Qt.LeftButton:
              self.eraseRectPos= QMouseEvent.pos(event)
@@ -402,14 +426,13 @@ class VideoWidget(QWidget):
             elif end_point is False:
                 QPoint.pos2 = QMouseEvent.pos(event)
                 rect = QRect(QPoint.pos1,QPoint.pos2)
-                end_point = True
                 self.vanishBox = True
+                end_point = True
                 self.repaint()
                 self.enableWriteBox = True
                 self.repaint(rect)
-                removeBool = False
-                self.enableWriteBox = False
-                self.deleteEnabled = False
+                #self.enableWriteBox = False
+                #self.deleteEnabled = False
                 start_point = False
                 end_point = False
 
