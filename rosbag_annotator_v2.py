@@ -280,50 +280,23 @@ class VideoWidget(QWidget):
                     timeId = player.videobox[frameCounter].timestamp[0]
                     player.videobox[frameCounter].removeBox() #CTRL + CLICK removes the box
         '''
-        '''
-            if start_point is True and end_point is True:
-                print "Mpike sto deleteEnable start end"
-                x = event.rect().x()
-                y = event.rect().y()
-                w = event.rect().width()
-                h = event.rect().height()
-                for i in range(len(player.videobox[frameCounter].box_Id)):
-                    x,y,w,h = player.videobox[frameCounter].box_Param[i]
-                    #if self.posX_annot > x and self.posX_annot < (x+w) and self.posY_annot > y and self.posY_annot < (y+h):
-                    rectPainter.setRenderHint(QPainter.Antialiasing)
-                    rectPainter.setPen(self.annotColor)
-                    rectPainter.drawRect(x,y,w,h)
-
-                rectPainter.setRenderHint(QPainter.Antialiasing)
-                rectPainter.setPen(Qt.blue)
-                rectPainter.drawRect(x,y,w,h)
-                #Remove old boxes and add the new ones
-                if self.enableWriteBox:
-                    if removeBool:
-                        try:
-                            timeId = player.videobox[frameCounter].timestamp[0] #Keep the timestamp to add the new box
-                        except:
-                            pass
-                        #player.videobox[frameCounter].removeAllBox() #Deletes all boxes in current frame
-                    boxNumber = len(player.videobox[frameCounter].box_Id)
-                    player.videobox[frameCounter].addBox(timeId,[boxNumber,x,y,w,h],'Clear')
-        '''
 
         if self.deleteEnabled:
-            for i in range(len(player.videobox[frameCounter].box_Id)):
-                print len(player.videobox[frameCounter].box_Param[i])
+            i = 0
+            while i < len(player.videobox[frameCounter].box_Id):
                 x,y,w,h = player.videobox[frameCounter].box_Param[i]
                 if self.posX_annot > x and self.posX_annot < (x+w) and self.posY_annot > y and self.posY_annot < (y+h):
                     rectPainter.setRenderHint(QPainter.Antialiasing)
                     rectPainter.setPen(Qt.red)
                     rectPainter.drawRect(x,y,w,h)
                     timeId = player.videobox[frameCounter].timestamp[0]
-                    player.videobox[frameCounter].removeSpecBox(i)
-                    for i in range(len(player.videobox[frameCounter].box_Id)):
-                        x,y,w,h = player.videobox[frameCounter].box_Param[i]
+                    player.videobox[frameCounter].removeSpecBox(player.videobox[frameCounter].box_Id[i])
+                    for j in range(len(player.videobox[frameCounter].box_Id)):
+                        x,y,w,h = player.videobox[frameCounter].box_Param[j]
                         rectPainter.setRenderHint(QPainter.Antialiasing)
                         rectPainter.setPen(self.annotColor)
                         rectPainter.drawRect(x,y,w,h)
+                i += 1
             self.deleteEnabled = False
 
         elif self.deleteAllBoxes:
