@@ -6,7 +6,7 @@ using QtMultimedia's QAbstractVideoSurface.
 
 The following is a translation into PyQt5 from the C++ example found in
 C:\QtEnterprise\5.1.1\msvc2010\examples\multimediawidgets\customvideosurface\customvideowidget."""
-
+#from __future__ import unicode_literals
 
 import csv
 import yaml
@@ -17,6 +17,12 @@ import argparse
 import textwrap
 import rospy
 import json
+import random
+import matplotlib
+
+matplotlib.use("Qt5Agg")
+import matplotlib.pyplot as plt
+
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge, CvBridgeError
@@ -26,6 +32,15 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtMultimedia import *
 from PyQt5.QtMultimediaWidgets import *
+import warnings
+
+from matplotlib.widgets import Cursor
+from numpy import arange, sin, pi
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+import matplotlib.transforms as transforms
+from matplotlib.collections import LineCollection
+from matplotlib.colors import ListedColormap, BoundaryNorm
 
 start_point = False
 end_point = False
@@ -207,6 +222,8 @@ class VideoWidget(QWidget):
         self.deleteEnabled = False
         self.deleteAllBoxes = False
         self.buttonLabels = []
+
+        #gantChart = gantShow()
 
     def videoSurface(self):
         return self.surface
@@ -487,6 +504,7 @@ class textBox(QWidget):
         self.close()
 
 class VideoPlayer(QWidget):
+    global gantChart
     def __init__(self, parent=None):
         super(VideoPlayer, self).__init__(parent)
         self.videobox = []
@@ -515,9 +533,13 @@ class VideoPlayer(QWidget):
         self.controlLayout.addWidget(self.positionSlider)
         self.controlEnabled = False
 
+        self.gantt = gantShow()
+        gantChart = self.gantt
+
         layout = QVBoxLayout()
         layout.addWidget(self.videoWidget)
         layout.addLayout(self.controlLayout)
+        layout.addWidget(self.gantt)
 
         self.setLayout(layout)
 
@@ -588,6 +610,7 @@ class VideoPlayer(QWidget):
                 json_label = []
                 for i in json_data['labels'] :
                     json_label.append(i)
+
         with open("colors.json") as js_f:
             js_obj = json.load(js_f)
             js_colors = []
@@ -708,6 +731,55 @@ class boundBox(object):
             self.annotation.pop(boxid)
         self.annotation.insert(boxid,classify)
 
+
+class videoGantChart(FigureCanvas):
+    def __init__(self, parent=None,width=15,height=1,dpi=100):
+        gantChart = Figure(figsize=(width, height), dpi=dpi)
+        self.axes = gantChart.add_subplot(111)
+
+        self.drawChart()
+
+        FigureCanvas.__init__(self, gantChart)
+        self.setParent(parent)
+
+        FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
+        FigureCanvas.updateGeometry(self)
+
+    def drawChart(self):
+        pass
+
+class gantShow(videoGantChart):
+
+    labels = []
+    classesToPlot = []
+    tickY=[]
+    tickX=[]
+    timeArrayToPlot = []
+    c = None
+    length = 0
+    fileExist = False
+
+    # >> PLOT WAVEFORM
+    def drawChart(self):
+        global duration
+        global colorName
+        global annotations, annotationColors
+        global checkYaxis, xTicks
+
+        self.classesToPlot = []
+        self.labels = []
+        self.tickY = []
+        #self.tickX = []
+
+        '''
+        self.axes.xaxis.tick_top()  #NA mpei o x apo panw
+        self.axes.set_xticks(10) #10 grammes ston aksona
+        self.axes.set_xticklabels([])
+        self.axes.set_xlim([-1,duration + 1])
+        self.axes.set_yticks(self.tickY) #Arithmos toy aksona y.
+        self.axes.set_yticklabels(self.classesToPlot) #Onomata twn klasewn ston aksona y
+        self.axes.grid(True)
+        '''
 if __name__ == '__main__':
     app = QApplication(sys.argv)
 
