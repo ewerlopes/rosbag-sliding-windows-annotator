@@ -19,6 +19,7 @@ import rospy
 import json
 import random
 import matplotlib
+import math
 
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -222,6 +223,9 @@ class VideoWidget(QWidget):
         self.deleteEnabled = False
         self.deleteAllBoxes = False
         self.buttonLabels = []
+        global classLabels, imageBuffer
+        classLabels = []
+        imageBuffer = []
 
         #gantChart = gantShow()
 
@@ -232,11 +236,14 @@ class VideoWidget(QWidget):
     def contextMenuEvent(self,event):
         global posX
         global posY
+        global classLabels,gantChart
+
         if event.reason() == QContextMenuEvent.Mouse:
             menu = QMenu(self)
             clear = menu.addAction('Clear')
             for i in player.json_Labels:
                 self.buttonLabels.append(menu.addAction(i))
+                #self.classLabels.append(i)
 
             deleteBox = menu.addAction('Delete Box')
             deleteAllBoxes = menu.addAction('Delete All Boxes')
@@ -246,6 +253,8 @@ class VideoWidget(QWidget):
             for i,key in enumerate(self.buttonLabels):
                 if action == key:
                     self.annotClass = player.json_Labels[i]
+                    if self.annotClass not in classLabels:
+                        classLabels.append(self.annotClass)
                     self.annotEnabled = True
             if action == deleteBox:
                 self.deleteEnabled = True
@@ -270,6 +279,10 @@ class VideoWidget(QWidget):
         #self.deleteAllBoxes = False
         #self.deleteEnabled = False
         self.annotEnabled = False
+
+        gantChart.axes.clear()
+        gantChart.drawChart()
+        gantChart.draw()
 
     def sizeHint(self):
         return self.surface.surfaceFormat().sizeHint()
@@ -329,14 +342,14 @@ class VideoWidget(QWidget):
                         rectPainter.drawRect(x,y,w,h)
                 i += 1
             self.deleteEnabled = False
-
+        #Deletes all boxes in current framerate
         elif self.deleteAllBoxes:
             timeId = player.videobox[frameCounter].timestamp[0]
             for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
                     rectPainter.setPen(Qt.red)
                     rectPainter.drawRect(x,y,w,h)
-            player.videobox[frameCounter].removeAllBox() #Deletes all boxes in current framerate
+            player.videobox[frameCounter].removeAllBox()
             self.deleteAllBoxes = False
         #Enabled when annotating
         elif self.annotEnabled:
@@ -504,8 +517,8 @@ class textBox(QWidget):
         self.close()
 
 class VideoPlayer(QWidget):
-    global gantChart
     def __init__(self, parent=None):
+        global gantChart
         super(VideoPlayer, self).__init__(parent)
         self.videobox = []
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.VideoSurface)
@@ -549,6 +562,7 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.durationChanged.connect(self.durationChanged)
 
     def openFile(self):
+        global imageBuffer,framerate
         fileName,_ = QFileDialog.getOpenFileName(self, "Open Bag", QDir.currentPath(),"*.bag")
 
         if not fileName:
@@ -562,16 +576,16 @@ class VideoPlayer(QWidget):
             #Get bag metadata
             (self.message_count,self.duration,compressed, framerate) = get_bag_metadata(bag)
             #Buffer the rosbag, boxes, timestamps
-            (self.image_buff, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
+            (imageBuffer, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
             fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
-            height, width, bytesPerComponent = self.image_buff[0].shape
+            height, width, bytesPerComponent = imageBuffer[0].shape
             video_writer = cv2.VideoWriter("myvid.avi", fourcc, framerate, (width,height), cv2.IMREAD_COLOR)
 
             if not video_writer.isOpened():
                 self.errorMessages(2)
             else:
                 print("Video initialized")
-                for frame in self.image_buff:
+                for frame in imageBuffer:
                     video_writer.write(frame)
                 video_writer.release()
 
@@ -727,7 +741,7 @@ class boundBox(object):
         self.annotation.pop(boxid)
 
     def changeClass(self,boxid,classify):
-        if boxid  < len(self.annotation):
+        if boxid < len(self.annotation):
             self.annotation.pop(boxid)
         self.annotation.insert(boxid,classify)
 
@@ -745,8 +759,8 @@ class videoGantChart(FigureCanvas):
         FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
         FigureCanvas.updateGeometry(self)
 
-    def drawChart(self):
-        pass
+    #def drawChart(self):
+     #   pass
 
 class gantShow(videoGantChart):
 
@@ -754,37 +768,61 @@ class gantShow(videoGantChart):
     classesToPlot = []
     tickY=[]
     tickX=[]
-    timeArrayToPlot = []
+    timeArray = []
     c = None
     length = 0
     fileExist = False
 
-    # >> PLOT WAVEFORM
+    #Plot the chart
     def drawChart(self):
-        global duration
+        global duration, imageBuffer, framerate
         global colorName
         global annotations, annotationColors
         global checkYaxis, xTicks
+        global classLabels
+        #classLabels = []
 
-        self.classesToPlot = []
-        self.labels = []
+        #self.classesToPlot = []
+        #self.labels = []
         self.tickY = []
-        #self.tickX = []
+        self.tickX = []
 
+     #Test Plot
+        #l = [random.randint(0, 10) for i in range(4)]
+        #self.axes.plot([0, 1, 2, 3], l, 'r')
+        #print 'ClassLabels:', classLabels
+        #self.draw()
+        self.axes.hlines(0,0,0)
+        #If not initialized dont crash
+        for idx in range(len(classLabels)):
+            self.tickY.append(idx)
+
+        #X axis with 5 sec timestep
+        for index in range(len(imageBuffer)):
+            if index % int(round(framerate))*5 == 0:
+                print index
+                self.tickX.append(index/(int(round(framerate))*5))
+            lastIndex = index
+        if len(imageBuffer) > 0:
+            if lastIndex not in self.tickX:
+                self.tickX.append(lastIndex)
+
+
+        self.axes.set_xticks(self.tickX) #10 grammes ston aksona
         '''
         self.axes.xaxis.tick_top()  #NA mpei o x apo panw
-        self.axes.set_xticks(10) #10 grammes ston aksona
-        self.axes.set_xticklabels([])
         self.axes.set_xlim([-1,duration + 1])
-        self.axes.set_yticks(self.tickY) #Arithmos toy aksona y.
         self.axes.set_yticklabels(self.classesToPlot) #Onomata twn klasewn ston aksona y
-        self.axes.grid(True)
+        self.axes.set_xticklabels([])
         '''
+        self.axes.set_yticks(self.tickY) #Arithmos toy aksona y.
+        self.axes.grid(True)
+
 if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     player = VideoPlayer()
-    player.resize(480,320)
+    player.resize(640,720)
     player.show()
 
     sys.exit(app.exec_())
