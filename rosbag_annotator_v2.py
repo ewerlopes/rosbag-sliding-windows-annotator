@@ -454,7 +454,6 @@ class textBox(QWidget):
         self.main_widget = QWidget(self)
         self.boxId = QLineEdit(self)
         self.Ok = QPushButton("Ok", self)
-        #self.show()
 
     def paintEvent(self, event):
         self.boxId.setPlaceholderText('Box Id:')
@@ -759,8 +758,8 @@ class videoGantChart(FigureCanvas):
         FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
         FigureCanvas.updateGeometry(self)
 
-    #def drawChart(self):
-     #   pass
+    def drawChart(self):
+        pass
 
 class gantShow(videoGantChart):
 
@@ -781,41 +780,43 @@ class gantShow(videoGantChart):
         global checkYaxis, xTicks
         global classLabels
         #classLabels = []
-
-        #self.classesToPlot = []
+        self.classesToPlot = []
         #self.labels = []
         self.tickY = []
         self.tickX = []
+        self.boxAtYaxes = []
 
-     #Test Plot
-        #l = [random.randint(0, 10) for i in range(4)]
-        #self.axes.plot([0, 1, 2, 3], l, 'r')
-        #print 'ClassLabels:', classLabels
-        #self.draw()
         self.axes.hlines(0,0,0)
-        #If not initialized dont crash
+
         for idx in range(len(classLabels)):
             self.tickY.append(idx)
-
+        time_index = 0
         #X axis with 5 sec timestep
         for index in range(len(imageBuffer)):
-            if index % int(round(framerate))*5 == 0:
-                print index
-                self.tickX.append(index/(int(round(framerate))*5))
-            lastIndex = index
-        if len(imageBuffer) > 0:
-            if lastIndex not in self.tickX:
-                self.tickX.append(lastIndex)
+            #print round(framerate)
+            if index % int(round(framerate)) == 0:
+                #print index
+                self.tickX.append(time_index)
+                time_index += 1
 
+        try:
+            for box_index in player.videobox:
+                for boxIdx,boxClass in box_index.box_Id, boxClass.annotation:
+                    if boxIdx not in self.boxAtYaxes:
+                        self.boxAtYaxes.append(boxIdx)
+                        self.classesToPlot(boxClass)
+            pass
+        except:
+            print Exception
 
-        self.axes.set_xticks(self.tickX) #10 grammes ston aksona
         '''
         self.axes.xaxis.tick_top()  #NA mpei o x apo panw
         self.axes.set_xlim([-1,duration + 1])
-        self.axes.set_yticklabels(self.classesToPlot) #Onomata twn klasewn ston aksona y
         self.axes.set_xticklabels([])
         '''
+        self.axes.set_xticks(self.tickX)
         self.axes.set_yticks(self.tickY) #Arithmos toy aksona y.
+        self.axes.set_yticklabels(self.classesToPlot) #Onomata twn klasewn ston aksona y
         self.axes.grid(True)
 
 if __name__ == '__main__':
