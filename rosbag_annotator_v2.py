@@ -20,6 +20,7 @@ import json
 import random
 import matplotlib
 import math
+from operator import itemgetter
 
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -46,6 +47,8 @@ from matplotlib.colors import ListedColormap, BoundaryNorm
 start_point = False
 end_point = False
 boxInitialized = False
+annotationColors = (['green'],['red'], ['magenta'],['yellow'])
+gantEnabled = False
 
 def buffer_data(bag, input_topic, compressed):
     image_buff = []
@@ -236,7 +239,7 @@ class VideoWidget(QWidget):
     def contextMenuEvent(self,event):
         global posX
         global posY
-        global classLabels,gantChart
+        global classLabels,gantChart,gantEnabled
 
         if event.reason() == QContextMenuEvent.Mouse:
             menu = QMenu(self)
@@ -280,6 +283,7 @@ class VideoWidget(QWidget):
         #self.deleteEnabled = False
         self.annotEnabled = False
 
+        gantEnabled = True
         gantChart.axes.clear()
         gantChart.drawChart()
         gantChart.draw()
@@ -778,14 +782,13 @@ class gantShow(videoGantChart):
         global colorName
         global annotations, annotationColors
         global checkYaxis, xTicks
-        global classLabels
+        global classLabels,gantEnabled
         #classLabels = []
         self.classesToPlot = []
         #self.labels = []
         self.tickY = []
         self.tickX = []
         self.boxAtYaxes = []
-
         self.axes.hlines(0,0,0)
 
         for idx in range(len(classLabels)):
@@ -799,15 +802,14 @@ class gantShow(videoGantChart):
                 self.tickX.append(time_index)
                 time_index += 1
 
-        try:
+        if gantEnabled:
             for box_index in player.videobox:
-                for boxIdx,boxClass in box_index.box_Id, boxClass.annotation:
-                    if boxIdx not in self.boxAtYaxes:
-                        self.boxAtYaxes.append(boxIdx)
-                        self.classesToPlot(boxClass)
-            pass
-        except:
-            print Exception
+                for boxIdx in box_index.box_Id:
+                    self.boxAtYaxes.append([boxIdx,box_index.annotation[boxIdx]])
+            self.boxAtYaxes = sorted(self.boxAtYaxes, key=itemgetter(0))
+            self.boxAtYaxes = [int(k) for k,_ in itertools.groupby(k)]
+            self.boxAtYaxes = list(k for _,k in itertools.groupby(k))
+        #print self.boxAtYaxes
 
         '''
         self.axes.xaxis.tick_top()  #NA mpei o x apo panw
