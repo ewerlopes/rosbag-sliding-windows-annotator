@@ -21,6 +21,7 @@ import random
 import matplotlib
 import math
 from operator import itemgetter
+import itertools
 
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -270,6 +271,9 @@ class VideoWidget(QWidget):
                 self.newBoxId.show()
             elif action == cancel:
                 pass
+            elif action == clear:
+                self.annotClass = 'clear'
+                self.annotEnabled = True
 
             self.posX_annot = event.pos().x()
             self.posY_annot = event.pos().y()
@@ -785,14 +789,12 @@ class gantShow(videoGantChart):
         global classLabels,gantEnabled
         #classLabels = []
         self.classesToPlot = []
-        #self.labels = []
+        self.timeWithId = []
         self.tickY = []
         self.tickX = []
         self.boxAtYaxes = []
         self.axes.hlines(0,0,0)
 
-        for idx in range(len(classLabels)):
-            self.tickY.append(idx)
         time_index = 0
         #X axis with 5 sec timestep
         for index in range(len(imageBuffer)):
@@ -805,22 +807,45 @@ class gantShow(videoGantChart):
         if gantEnabled:
             for box_index in player.videobox:
                 for boxIdx in box_index.box_Id:
+                    #print self.boxAtYaxes.append([boxIdx,box_index.annotation[boxIdx]])
+                    #if boxIdx in box_index.box_Id and box_index.annotation[boxIdx]:
                     self.boxAtYaxes.append([boxIdx,box_index.annotation[boxIdx]])
-            self.boxAtYaxes = sorted(self.boxAtYaxes, key=itemgetter(0))
-            self.boxAtYaxes = [int(k) for k,_ in itertools.groupby(k)]
-            self.boxAtYaxes = list(k for _,k in itertools.groupby(k))
-        #print self.boxAtYaxes
+                    self.timeWithId.append([boxIdx,box_index.timestamp[boxIdx],box_index.annotation[boxIdx]])
 
-        '''
-        self.axes.xaxis.tick_top()  #NA mpei o x apo panw
-        self.axes.set_xlim([-1,duration + 1])
-        self.axes.set_xticklabels([])
-        '''
+            #for index in self.timeWithId:
+            #    self.axes.hlines(index + 1, (annotations[anIndex][0]/1000), (annotations[anIndex][1]/1000),linewidth=10, color='k')
+            #Remove duplicates for the y axis
+            temp_set = set(map(tuple,self.boxAtYaxes))
+            self.boxAtYaxes = map(list,temp_set)
+            #print self.boxAtYaxes, len(self.boxAtYaxes)
+            #print self.timeWithId, len(self.timeWithId)
+            '''
+            for idx in range(len(self.boxAtYaxes)):
+                self.tickY.append(idx)
+            '''
+
+        for tick in self.axes.yaxis.get_major_ticks():
+            tick.label.set_fontsize(9)
+
         self.axes.set_xticks(self.tickX)
-        self.axes.set_yticks(self.tickY) #Arithmos toy aksona y.
-        self.axes.set_yticklabels(self.classesToPlot) #Onomata twn klasewn ston aksona y
+        #self.axes.set_yticks(self.tickY)
+        self.axes.set_ylim([-1,len(self.boxAtYaxes)])
+        #self.axes.set_yticks([index[0] for index in self.boxAtYaxes]) #Arithmos toy aksona y.
+        self.axes.set_yticklabels([str(index[0])+'::'+index[1] for index in self.boxAtYaxes]) #Onomata twn klasewn ston aksona y
         self.axes.grid(True)
 
+        #Calculates the timeStart and end for each annotation to plot
+        def timeCalc(self,time):
+            endTimeEnabled = False
+            for id_index in self.timeWithId:
+                self.startTime = id_index[1]
+                self.endTime = id_index[1]
+                for idx in self.timeWithId:
+                    if id_index[0] in idx and id_index[2] in idx:
+                        if endTimeEnabled:
+                            pass
+
+        #print self.boxAtYaxes
 if __name__ == '__main__':
     app = QApplication(sys.argv)
 
