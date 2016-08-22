@@ -48,7 +48,7 @@ from matplotlib.colors import ListedColormap, BoundaryNorm
 start_point = False
 end_point = False
 boxInitialized = False
-annotationColors = (['green'],['red'], ['magenta'],['yellow'])
+annotationColors = ('green','red', 'magenta','yellow','cyan','black')
 gantEnabled = False
 
 def buffer_data(bag, input_topic, compressed):
@@ -272,7 +272,7 @@ class VideoWidget(QWidget):
             elif action == cancel:
                 pass
             elif action == clear:
-                self.annotClass = 'clear'
+                self.annotClass = 'Clear'
                 self.annotEnabled = True
 
             self.posX_annot = event.pos().x()
@@ -624,7 +624,7 @@ class VideoPlayer(QWidget):
                 self.json_Labels,self.json_Colors = self.parseJson()
             except:
                 self.errorMessages(3)
-
+            print self.time_buff[-1]
     def parseJson(self):
         with open("labels.json") as json_file:
                 json_data = json.load(json_file)
@@ -770,16 +770,6 @@ class videoGantChart(FigureCanvas):
         pass
 
 class gantShow(videoGantChart):
-
-    labels = []
-    classesToPlot = []
-    tickY=[]
-    tickX=[]
-    timeArray = []
-    c = None
-    length = 0
-    fileExist = False
-
     #Plot the chart
     def drawChart(self):
         global duration, imageBuffer, framerate
@@ -787,12 +777,14 @@ class gantShow(videoGantChart):
         global annotations, annotationColors
         global checkYaxis, xTicks
         global classLabels,gantEnabled
-        #classLabels = []
+
         self.classesToPlot = []
         self.timeWithId = []
         self.tickY = []
         self.tickX = []
+        self.tickXtime = []
         self.boxAtYaxes = []
+        self.timeDuration = []
         self.axes.hlines(0,0,0)
 
         time_index = 0
@@ -800,52 +792,61 @@ class gantShow(videoGantChart):
         for index in range(len(imageBuffer)):
             #print round(framerate)
             if index % int(round(framerate)) == 0:
-                #print index
                 self.tickX.append(time_index)
                 time_index += 1
 
         if gantEnabled:
             for box_index in player.videobox:
                 for boxIdx in box_index.box_Id:
-                    #print self.boxAtYaxes.append([boxIdx,box_index.annotation[boxIdx]])
-                    #if boxIdx in box_index.box_Id and box_index.annotation[boxIdx]:
                     self.boxAtYaxes.append([boxIdx,box_index.annotation[boxIdx]])
                     self.timeWithId.append([boxIdx,box_index.timestamp[boxIdx],box_index.annotation[boxIdx]])
 
-            #for index in self.timeWithId:
-            #    self.axes.hlines(index + 1, (annotations[anIndex][0]/1000), (annotations[anIndex][1]/1000),linewidth=10, color='k')
             #Remove duplicates for the y axis
             temp_set = set(map(tuple,self.boxAtYaxes))
-            self.boxAtYaxes = map(list,temp_set)
-            #print self.boxAtYaxes, len(self.boxAtYaxes)
-            #print self.timeWithId, len(self.timeWithId)
-            '''
-            for idx in range(len(self.boxAtYaxes)):
-                self.tickY.append(idx)
-            '''
+            self.boxAtYaxes = sorted(map(list,temp_set))
+
+            for key in range(len(self.boxAtYaxes)):
+                self.tickY.append(key)
+            for a_class in range(len(self.boxAtYaxes)):
+                for index in range(len(self.timeWithId)):
+                    self.endTime = self.timeCalc(self.timeWithId,index)
+                    if self.boxAtYaxes[a_class][1] is 'Clear':
+                        pass
+                    elif self.boxAtYaxes[a_class][1] is self.timeWithId[index][2]:
+                        self.color = self.getColor(self.boxAtYaxes[a_class][1])
+                        self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],self.timeWithId[index][2]]), self.timeWithId[index][1],self.endTime,linewidth=10,color=self.color)
 
         for tick in self.axes.yaxis.get_major_ticks():
             tick.label.set_fontsize(9)
 
         self.axes.set_xticks(self.tickX)
-        #self.axes.set_yticks(self.tickY)
+        self.axes.set_yticks(self.tickY)
         self.axes.set_ylim([-1,len(self.boxAtYaxes)])
-        #self.axes.set_yticks([index[0] for index in self.boxAtYaxes]) #Arithmos toy aksona y.
         self.axes.set_yticklabels([str(index[0])+'::'+index[1] for index in self.boxAtYaxes]) #Onomata twn klasewn ston aksona y
         self.axes.grid(True)
 
-        #Calculates the timeStart and end for each annotation to plot
-        def timeCalc(self,time):
-            endTimeEnabled = False
-            for id_index in self.timeWithId:
-                self.startTime = id_index[1]
-                self.endTime = id_index[1]
-                for idx in self.timeWithId:
-                    if id_index[0] in idx and id_index[2] in idx:
-                        if endTimeEnabled:
-                            pass
+    #Calculates the end time for each annotation to plot
+    def timeCalc(self,time,curr):
+        #endTimeEnabled = False
+        temp_class = time[curr][2]
+        temp_id = time[curr][0]
+        endtime = time[curr][1]
+        while (temp_class in time[curr] and temp_id in time[curr]):
+            endtime = time[curr][1]
+            curr += 1
+            if curr > len(time)-1:
+                break
+        return endtime
 
-        #print self.boxAtYaxes
+    def getColor(self,action):
+        for index,key in enumerate(classLabels):
+            if action is 'Clear':
+                color = 'blue'
+                return color
+            elif action is key:
+                color = annotationColors[index % len(annotationColors)]
+                return color
+
 if __name__ == '__main__':
     app = QApplication(sys.argv)
 
