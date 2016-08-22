@@ -48,7 +48,7 @@ from matplotlib.colors import ListedColormap, BoundaryNorm
 start_point = False
 end_point = False
 boxInitialized = False
-annotationColors = ('green','red', 'magenta','yellow','cyan','black')
+annotationColors = ['#00FF00','#FF0000', '#FF00FF','#FFFF00','#00FFFF','#FFA500']
 gantEnabled = False
 
 def buffer_data(bag, input_topic, compressed):
@@ -223,7 +223,8 @@ class VideoWidget(QWidget):
         self.vanishBox = False
         self.enableWriteBox = False
         self.annotEnabled = False
-        self.annotColor = Qt.blue
+        self.annotColor = '#FF0000'
+        self.annotClass = 'Clear'
         self.deleteEnabled = False
         self.deleteAllBoxes = False
         self.buttonLabels = []
@@ -346,7 +347,7 @@ class VideoWidget(QWidget):
                     for j in range(len(player.videobox[frameCounter].box_Id)):
                         x,y,w,h = player.videobox[frameCounter].box_Param[j]
                         rectPainter.setRenderHint(QPainter.Antialiasing)
-                        rectPainter.setPen(self.annotColor)
+                        rectPainter.setPen(QColor(gantChart.getColor(player.videobox[frameCounter].annotation[j])))
                         rectPainter.drawRect(x,y,w,h)
                 i += 1
             self.deleteEnabled = False
@@ -367,15 +368,16 @@ class VideoWidget(QWidget):
                 x,y,w,h = player.videobox[frameCounter].box_Param[i]
                 if self.posX_annot > x and self.posX_annot < (x+w) and self.posY_annot > y and self.posY_annot < (y+h):
                     rectPainter.setRenderHint(QPainter.Antialiasing)
-                    rectPainter.setPen(self.annotColor)
+                    rectPainter.setPen(QColor(gantChart.getColor(self.annotClass)))
                     rectPainter.drawRect(x,y,w,h)
                     player.videobox[frameCounter].changeClass(i,self.annotClass)
                     box = i
                 else:
                     for i in range(len(player.videobox[frameCounter].box_Id)):
                         rectPainter.setRenderHint(QPainter.Antialiasing)
-                        rectPainter.setPen(self.annotColor)
+                        rectPainter.setPen(QColor(gantChart.getColor(player.videobox[frameCounter].annotation[i])))
                         rectPainter.drawRect(x,y,w,h)
+                        box = 0
             #Annotate the box at remaining frames
             while self.frameNumber < len(player.time_buff):
                 if box >= len(player.videobox[self.frameNumber].box_Id):
@@ -390,7 +392,7 @@ class VideoWidget(QWidget):
                 h = event.rect().height()
 
                 rectPainter.setRenderHint(QPainter.Antialiasing)
-                rectPainter.setPen(Qt.blue)
+                rectPainter.setPen(QColor(gantChart.getColor(self.annotClass)))
                 rectPainter.drawRect(x,y,w,h)
 
                 #Keep the timestamp to add the new box
@@ -405,14 +407,14 @@ class VideoWidget(QWidget):
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
                     rectPainter.setRenderHint(QPainter.Antialiasing)
-                    rectPainter.setPen(Qt.blue)
+                    rectPainter.setPen(QColor(gantChart.getColor(self.annotClass)))
                     rectPainter.drawRect(x,y,w,h)
 
         #Play the bound boxes from csv
         elif len(player.videobox) > 0 and frameCounter < len(player.time_buff):# and not self.vanishBox:
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
-                    rectPainter.setPen(self.annotColor)
+                    rectPainter.setPen(QColor(gantChart.getColor(player.videobox[frameCounter].annotation[i])))
                     rectPainter.drawRect(x,y,w,h)
 
         self.vanishBox = False
@@ -624,7 +626,7 @@ class VideoPlayer(QWidget):
                 self.json_Labels,self.json_Colors = self.parseJson()
             except:
                 self.errorMessages(3)
-            print self.time_buff[-1]
+
     def parseJson(self):
         with open("labels.json") as json_file:
                 json_data = json.load(json_file)
@@ -827,7 +829,6 @@ class gantShow(videoGantChart):
 
     #Calculates the end time for each annotation to plot
     def timeCalc(self,time,curr):
-        #endTimeEnabled = False
         temp_class = time[curr][2]
         temp_id = time[curr][0]
         endtime = time[curr][1]
@@ -838,13 +839,14 @@ class gantShow(videoGantChart):
                 break
         return endtime
 
+    #Calculates the color for the gantChart and bound Boxes
     def getColor(self,action):
         for index,key in enumerate(classLabels):
-            if action is 'Clear':
-                color = 'blue'
-                return color
-            elif action is key:
+            if action is key:
                 color = annotationColors[index % len(annotationColors)]
+                print index
+            else:
+                color = '#0000FF'
                 return color
 
 if __name__ == '__main__':
