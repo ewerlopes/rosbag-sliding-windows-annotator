@@ -48,7 +48,7 @@ from matplotlib.colors import ListedColormap, BoundaryNorm
 start_point = False
 end_point = False
 boxInitialized = False
-annotationColors = ['#00FF00','#FF0000', '#FF00FF','#FFFF00','#00FFFF','#FFA500']
+annotationColors = ['#00FF00', '#FF00FF','#FFFF00','#00FFFF','#FFA500']
 gantEnabled = False
 
 def buffer_data(bag, input_topic, compressed):
@@ -256,10 +256,11 @@ class VideoWidget(QWidget):
             cancel = menu.addAction('Cancel')
             action = menu.exec_(self.mapToGlobal(event.pos()))
             for i,key in enumerate(self.buttonLabels):
+                if player.json_Labels[i] not in classLabels:
+                    classLabels.append(player.json_Labels[i])
                 if action == key:
                     self.annotClass = player.json_Labels[i]
-                    if self.annotClass not in classLabels:
-                        classLabels.append(self.annotClass)
+                    print classLabels
                     self.annotEnabled = True
             if action == deleteBox:
                 self.deleteEnabled = True
@@ -368,6 +369,7 @@ class VideoWidget(QWidget):
                 x,y,w,h = player.videobox[frameCounter].box_Param[i]
                 if self.posX_annot > x and self.posX_annot < (x+w) and self.posY_annot > y and self.posY_annot < (y+h):
                     rectPainter.setRenderHint(QPainter.Antialiasing)
+                    print self.annotClass
                     rectPainter.setPen(QColor(gantChart.getColor(self.annotClass)))
                     rectPainter.drawRect(x,y,w,h)
                     player.videobox[frameCounter].changeClass(i,self.annotClass)
@@ -480,13 +482,10 @@ class textBox(QWidget):
         self.boxId.show()
 
     def boxChanged(self,text):
-        #global text_
-        #print "mpanei otan vazw arithmo"
+
         self.box_Idx = text
 
     def closeTextBox(self):
-        #self.text
-        #global fig, chartFig
         try:
             self.box_Idx = int(self.box_Idx)
         except:
@@ -754,7 +753,6 @@ class boundBox(object):
             self.annotation.pop(boxid)
         self.annotation.insert(boxid,classify)
 
-
 class videoGantChart(FigureCanvas):
     def __init__(self, parent=None,width=15,height=1,dpi=100):
         gantChart = Figure(figsize=(width, height), dpi=dpi)
@@ -843,11 +841,11 @@ class gantShow(videoGantChart):
     def getColor(self,action):
         for index,key in enumerate(classLabels):
             if action is key:
-                color = annotationColors[index % len(annotationColors)]
-                print index
+                #print action,index
+                return annotationColors[index % len(annotationColors)]
+                #print index
             else:
-                color = '#0000FF'
-                return color
+                return '#0000FF'
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
