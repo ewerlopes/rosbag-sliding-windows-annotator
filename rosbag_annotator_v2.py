@@ -223,7 +223,6 @@ class VideoWidget(QWidget):
         self.vanishBox = False
         self.enableWriteBox = False
         self.annotEnabled = False
-        self.annotColor = '#FF0000'
         self.annotClass = 'Clear'
         self.deleteEnabled = False
         self.deleteAllBoxes = False
@@ -231,8 +230,6 @@ class VideoWidget(QWidget):
         global classLabels, imageBuffer
         classLabels = []
         imageBuffer = []
-
-        #gantChart = gantShow()
 
     def videoSurface(self):
         return self.surface
@@ -283,8 +280,6 @@ class VideoWidget(QWidget):
 
             self.repaint()
             self.buttonLabels = []
-        #self.deleteAllBoxes = False
-        #self.deleteEnabled = False
         self.annotEnabled = False
 
         gantEnabled = True
@@ -294,6 +289,14 @@ class VideoWidget(QWidget):
 
     def sizeHint(self):
         return self.surface.surfaceFormat().sizeHint()
+
+    #Draws the bocxId at top left corner of the box
+    def showBoxId(self,topX,topY):
+        if not boxIdPainter.isActive() :
+            boxIdPainter.begin(self)
+        boxIdPainter = QPainter(self)
+        boxIdPainter.setBrush(Qt.black)
+        boxIdPainter.drawRect(topX,topY,topX+10,topY+5)
 
     def paintEvent(self, event):
         global start_point
@@ -413,8 +416,14 @@ class VideoWidget(QWidget):
         elif len(player.videobox) > 0 and frameCounter < len(player.time_buff):
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
-                    rectPainter.setPen(QColor(gantChart.getColor(player.videobox[frameCounter].annotation[i])))
-                    rectPainter.drawRect(x,y,w,h)
+                    if gantChart.getColor(player.videobox[frameCounter].annotation[i]) is None:
+                        rectPainter.setRenderHint(QPainter.Antialiasing)
+                        rectPainter.setPen(Qt.blue)
+                        rectPainter.drawRect(x,y,w,h)
+                    else:
+                        rectPainter.setRenderHint(QPainter.Antialiasing)
+                        rectPainter.setPen(QColor(gantChart.getColor(player.videobox[frameCounter].annotation[i])))
+                        rectPainter.drawRect(x,y,w,h)
 
         if rectPainter.isActive():
             rectPainter.end()
@@ -454,7 +463,6 @@ class textBox(QWidget):
         global frameCounter
         global posX
         global posY
-       #global fig, chartFig
 
         QWidget.__init__(self)
         self.setWindowTitle('Set Box id')
@@ -761,8 +769,8 @@ class videoGantChart(FigureCanvas):
         FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
         FigureCanvas.updateGeometry(self)
 
-    def drawChart(self):
-        pass
+    #def drawChart(self):
+     #   pass
 
 class gantShow(videoGantChart):
     #Plot the chart
