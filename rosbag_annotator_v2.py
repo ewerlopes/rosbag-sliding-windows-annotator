@@ -248,7 +248,6 @@ class VideoWidget(QWidget):
             clear = menu.addAction('Clear')
             for i in player.json_Labels:
                 self.buttonLabels.append(menu.addAction(i))
-                #self.classLabels.append(i)
 
             deleteBox = menu.addAction('Delete Box')
             deleteAllBoxes = menu.addAction('Delete All Boxes')
@@ -260,7 +259,6 @@ class VideoWidget(QWidget):
                     classLabels.append(player.json_Labels[i])
                 if action == key:
                     self.annotClass = player.json_Labels[i]
-                    print classLabels
                     self.annotEnabled = True
             if action == deleteBox:
                 self.deleteEnabled = True
@@ -363,26 +361,25 @@ class VideoWidget(QWidget):
             self.deleteAllBoxes = False
         #Enabled when annotating
         elif self.annotEnabled:
-            #print "Mpike gia annotation length",len(player.videobox[frameCounter].box_Id)
             self.frameNumber = frameCounter
+            box = None
             for i in range(len(player.videobox[frameCounter].box_Id)):
                 x,y,w,h = player.videobox[frameCounter].box_Param[i]
                 if self.posX_annot > x and self.posX_annot < (x+w) and self.posY_annot > y and self.posY_annot < (y+h):
                     rectPainter.setRenderHint(QPainter.Antialiasing)
-                    print self.annotClass
                     rectPainter.setPen(QColor(gantChart.getColor(self.annotClass)))
                     rectPainter.drawRect(x,y,w,h)
                     player.videobox[frameCounter].changeClass(i,self.annotClass)
                     box = i
+                    #break
                 else:
-                    for i in range(len(player.videobox[frameCounter].box_Id)):
-                        rectPainter.setRenderHint(QPainter.Antialiasing)
-                        rectPainter.setPen(QColor(gantChart.getColor(player.videobox[frameCounter].annotation[i])))
-                        rectPainter.drawRect(x,y,w,h)
-                        box = 0
+                    #for i in range(len(player.videobox[frameCounter].box_Id)):
+                    rectPainter.setRenderHint(QPainter.Antialiasing)
+                    rectPainter.setPen(QColor(gantChart.getColor(player.videobox[frameCounter].annotation[i])))
+                    rectPainter.drawRect(x,y,w,h)
             #Annotate the box at remaining frames
             while self.frameNumber < len(player.time_buff):
-                if box >= len(player.videobox[self.frameNumber].box_Id):
+                if box >= len(player.videobox[self.frameNumber].box_Id) or box is None:
                     break
                 player.videobox[self.frameNumber].changeClass(box,self.annotClass)
                 self.frameNumber += 1
@@ -409,17 +406,16 @@ class VideoWidget(QWidget):
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
                     rectPainter.setRenderHint(QPainter.Antialiasing)
-                    rectPainter.setPen(QColor(gantChart.getColor(self.annotClass)))
+                    rectPainter.setPen(QColor(gantChart.getColor(player.videobox[frameCounter].annotation[i])))
                     rectPainter.drawRect(x,y,w,h)
 
         #Play the bound boxes from csv
-        elif len(player.videobox) > 0 and frameCounter < len(player.time_buff):# and not self.vanishBox:
+        elif len(player.videobox) > 0 and frameCounter < len(player.time_buff):
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
                     rectPainter.setPen(QColor(gantChart.getColor(player.videobox[frameCounter].annotation[i])))
                     rectPainter.drawRect(x,y,w,h)
 
-        self.vanishBox = False
         if rectPainter.isActive():
             rectPainter.end()
 
@@ -440,7 +436,6 @@ class VideoWidget(QWidget):
             elif end_point is False:
                 QPoint.pos2 = QMouseEvent.pos(event)
                 rect = QRect(QPoint.pos1,QPoint.pos2)
-                self.vanishBox = True
                 end_point = True
                 self.repaint()
                 self.enableWriteBox = True
@@ -778,6 +773,8 @@ class gantShow(videoGantChart):
         global checkYaxis, xTicks
         global classLabels,gantEnabled
 
+        self.startTime = []
+        self.endTime = []
         self.classesToPlot = []
         self.timeWithId = []
         self.tickY = []
@@ -785,6 +782,7 @@ class gantShow(videoGantChart):
         self.tickXtime = []
         self.boxAtYaxes = []
         self.timeDuration = []
+        self.allBoxes = []
         self.axes.hlines(0,0,0)
 
         time_index = 0
@@ -807,14 +805,13 @@ class gantShow(videoGantChart):
 
             for key in range(len(self.boxAtYaxes)):
                 self.tickY.append(key)
-            for a_class in range(len(self.boxAtYaxes)):
-                for index in range(len(self.timeWithId)):
-                    self.endTime = self.timeCalc(self.timeWithId,index)
-                    if self.boxAtYaxes[a_class][1] is 'Clear':
-                        pass
-                    elif self.boxAtYaxes[a_class][1] is self.timeWithId[index][2]:
-                        self.color = self.getColor(self.boxAtYaxes[a_class][1])
-                        self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],self.timeWithId[index][2]]), self.timeWithId[index][1],self.endTime,linewidth=10,color=self.color)
+            for index in range(len(self.timeWithId)):
+                self.startTime,self.endTime = self.timeCalc(self.timeWithId,index)
+                if self.timeWithId[index][1] == self.endTime:
+                    self.color = self.getColor(self.timeWithId[index][2])
+                    self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],self.timeWithId[index][2]]), self.startTime,self.endTime+(1/framerate),linewidth=10,color=self.color)
+                self.color = self.getColor(self.timeWithId[index][2])
+                self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],self.timeWithId[index][2]]), self.startTime,self.endTime,linewidth=10,color=self.color)
 
         for tick in self.axes.yaxis.get_major_ticks():
             tick.label.set_fontsize(9)
@@ -829,22 +826,24 @@ class gantShow(videoGantChart):
     def timeCalc(self,time,curr):
         temp_class = time[curr][2]
         temp_id = time[curr][0]
+        starttime = time[curr][1]
+        #endtime = [time[curr][1]]
         endtime = time[curr][1]
-        while (temp_class in time[curr] and temp_id in time[curr]):
+        while temp_class in time[curr] and temp_id in time[curr]:
             endtime = time[curr][1]
             curr += 1
             if curr > len(time)-1:
                 break
-        return endtime
+        #print 'class:', temp_class,'id:', temp_id, starttime,endtime
+
+        return starttime,endtime
 
     #Calculates the color for the gantChart and bound Boxes
     def getColor(self,action):
         for index,key in enumerate(classLabels):
             if action is key:
-                #print action,index
                 return annotationColors[index % len(annotationColors)]
-                #print index
-            else:
+            if action is 'Clear':
                 return '#0000FF'
 
 if __name__ == '__main__':
