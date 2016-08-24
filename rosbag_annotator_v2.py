@@ -6,8 +6,6 @@ using QtMultimedia's QAbstractVideoSurface.
 
 The following is a translation into PyQt5 from the C++ example found in
 C:\QtEnterprise\5.1.1\msvc2010\examples\multimediawidgets\customvideosurface\customvideowidget."""
-#from __future__ import unicode_literals
-
 import csv
 import yaml
 import cv2
@@ -19,9 +17,6 @@ import rospy
 import json
 import random
 import matplotlib
-import math
-from operator import itemgetter
-import itertools
 
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -86,8 +81,6 @@ def buffer_csv(csv_file):
             csv_reader = csv.reader(file_obj, delimiter = '\t')
             try:
                 index = [x.strip() for x in csv_reader.next()].index('Rect_id')
-            #metr_index = [x.strip() for x in csv_reader.next().index('Meter_X')]
-                #index2 = [x.strip() for x in csv_reader.next()].index('Meter_X')
                 for row in csv_reader:
                     (rec_id,x, y, width, height) = map(int, row[index:index + 5])
                     (meter_X,meter_Y,meter_Z,top,meter_h,distance) = map(float, row[(index+5)::])
@@ -173,7 +166,6 @@ class VideoWidgetSurface(QAbstractVideoSurface):
         if (self.surfaceFormat().pixelFormat() != frame.pixelFormat() or self.surfaceFormat().frameSize() != frame.size()):
             self.setError(QAbstractVideoSurface.IncorrectFormatError)
             self.stop()
-            #frameCounter = 0
             return False
         else:
             self.currentFrame = frame
@@ -213,6 +205,7 @@ class VideoWidgetSurface(QAbstractVideoSurface):
 class VideoWidget(QWidget):
 
     def __init__(self, parent=None):
+        global classLabels, imageBuffer
         super(VideoWidget, self).__init__(parent)
         self.setAutoFillBackground(False)
         self.setAttribute(Qt.WA_NoSystemBackground, True)
@@ -230,9 +223,9 @@ class VideoWidget(QWidget):
         self.deleteEnabled = False
         self.deleteAllBoxes = False
         self.buttonLabels = []
-        global classLabels, imageBuffer
         classLabels = []
         imageBuffer = []
+
 
     def videoSurface(self):
         return self.surface
@@ -265,7 +258,7 @@ class VideoWidget(QWidget):
             elif action ==  deleteAllBoxes:
                 self.deleteAllBoxes = True
             elif action == changeId:
-                #call the textbox
+                #Call the textbox
                 self.newBoxId = textBox()
                 self.newBoxId.setGeometry(QRect(500, 100, 300, 100))
                 self.newBoxId.show()
@@ -293,6 +286,7 @@ class VideoWidget(QWidget):
     def sizeHint(self):
         return self.surface.surfaceFormat().sizeHint()
 
+    #Shows the video and bound boxes on it
     def paintEvent(self, event):
         global start_point
         global end_point
@@ -301,9 +295,14 @@ class VideoWidget(QWidget):
 
         painter = QPainter(self)
         rectPainter = QPainter(self)
+        boxIdPainter = QPainter()
 
         if not rectPainter.isActive():
             rectPainter.begin(self)
+        '''
+        if not boxIdPainter.isActive():
+            boxIdPainter.begin(self)
+        '''
 
         if (self.surface.isActive()):
             videoRect = QRegion(self.surface.videoRect())
@@ -336,16 +335,36 @@ class VideoWidget(QWidget):
             while i < len(player.videobox[frameCounter].box_Id):
                 x,y,w,h = player.videobox[frameCounter].box_Param[i]
                 if self.posX_annot > x and self.posX_annot < (x+w) and self.posY_annot > y and self.posY_annot < (y+h):
+                    if not rectPainter.isActive():
+                        rectPainter.begin(self)
                     rectPainter.setRenderHint(QPainter.Antialiasing)
                     rectPainter.setPen(Qt.red)
                     rectPainter.drawRect(x,y,w,h)
+                    rectPainter.end()
+
+                    if not boxIdPainter.isActive():
+                        boxIdPainter.begin(self)
+                    boxIdPainter.setRenderHint(QPainter.Antialiasing)
+                    boxIdPainter.setPen(QColor(255,0,0))
+                    boxIdPainter.drawText(QRectF(x+2,y,w,h),Qt.AlignLeft,str(player.videobox[frameCounter].box_Id[i]))
+                    boxIdPainter.end()
                     timeId = player.videobox[frameCounter].timestamp[0]
                     player.videobox[frameCounter].removeSpecBox(player.videobox[frameCounter].box_Id[i])
                     for j in range(len(player.videobox[frameCounter].box_Id)):
                         x,y,w,h = player.videobox[frameCounter].box_Param[j]
+                        if not rectPainter.isActive():
+                            rectPainter.begin(self)
                         rectPainter.setRenderHint(QPainter.Antialiasing)
                         rectPainter.setPen(QColor(self.getColorBox(player.videobox[frameCounter].annotation[j])))
                         rectPainter.drawRect(x,y,w,h)
+                        rectPainter.end()
+
+                        if not boxIdPainter.isActive():
+                            boxIdPainter.begin(self)
+                        boxIdPainter.setRenderHint(QPainter.Antialiasing)
+                        boxIdPainter.setPen(QColor(255,0,0))
+                        boxIdPainter.drawText(QRectF(x+2,y,w,h),Qt.AlignLeft,str(player.videobox[frameCounter].box_Id[i]))
+                        boxIdPainter.end()
                 i += 1
             self.deleteEnabled = False
         #Deletes all boxes in current framerate
@@ -353,8 +372,18 @@ class VideoWidget(QWidget):
             timeId = player.videobox[frameCounter].timestamp[0]
             for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
+                    if not rectPainter.isActive():
+                        rectPainter.begin(self)
                     rectPainter.setPen(Qt.red)
                     rectPainter.drawRect(x,y,w,h)
+                    rectPainter.end()
+
+                    if not boxIdPainter.isActive():
+                        boxIdPainter.begin(self)
+                    boxIdPainter.setRenderHint(QPainter.Antialiasing)
+                    boxIdPainter.setPen(QColor(255,0,0))
+                    boxIdPainter.drawText(QRectF(x+2,y,w,h),Qt.AlignLeft,str(player.videobox[frameCounter].box_Id[i]))
+                    boxIdPainter.end()
             player.videobox[frameCounter].removeAllBox()
             self.deleteAllBoxes = False
         #Enabled when annotating
@@ -364,17 +393,36 @@ class VideoWidget(QWidget):
             for i in range(len(player.videobox[frameCounter].box_Id)):
                 x,y,w,h = player.videobox[frameCounter].box_Param[i]
                 if self.posX_annot > x and self.posX_annot < (x+w) and self.posY_annot > y and self.posY_annot < (y+h):
+                    if not rectPainter.isActive():
+                        rectPainter.begin(self)
                     rectPainter.setRenderHint(QPainter.Antialiasing)
                     rectPainter.setPen(QColor(self.getColorBox(self.annotClass)))
                     rectPainter.drawRect(x,y,w,h)
+                    rectPainter.end()
+
+                    if not boxIdPainter.isActive():
+                        boxIdPainter.begin(self)
+                    boxIdPainter.setRenderHint(QPainter.Antialiasing)
+                    boxIdPainter.setPen(QColor(255,0,0))
+                    boxIdPainter.drawText(QRectF(x+2,y,w,h),Qt.AlignLeft,str(player.videobox[frameCounter].box_Id[i]))
+                    boxIdPainter.end()
                     player.videobox[frameCounter].changeClass(i,self.annotClass)
                     box = i
-                    #break
                 else:
-                    #for i in range(len(player.videobox[frameCounter].box_Id)):
+                    if not rectPainter.isActive():
+                        rectPainter.begin(self)
                     rectPainter.setRenderHint(QPainter.Antialiasing)
                     rectPainter.setPen(QColor(self.getColorBox(player.videobox[frameCounter].annotation[i])))
                     rectPainter.drawRect(x,y,w,h)
+                    rectPainter.end()
+
+                    if not boxIdPainter.isActive():
+                        boxIdPainter.begin(self)
+                    boxIdPainter.setRenderHint(QPainter.Antialiasing)
+                    boxIdPainter.setPen(QColor(255,0,0))
+                    boxIdPainter.drawText(QRectF(x+2,y,w,h),Qt.AlignLeft,str(player.videobox[frameCounter].box_Id[i]))
+                    boxIdPainter.end()
+
             #Annotate the box at remaining frames
             while self.frameNumber < len(player.time_buff):
                 if box >= len(player.videobox[self.frameNumber].box_Id) or box is None:
@@ -388,10 +436,6 @@ class VideoWidget(QWidget):
                 w = event.rect().width()
                 h = event.rect().height()
 
-                rectPainter.setRenderHint(QPainter.Antialiasing)
-                rectPainter.setPen(QColor(self.getColorBox(self.annotClass)))
-                rectPainter.drawRect(x,y,w,h)
-
                 #Keep the timestamp to add the new box
                 if  len(player.videobox[frameCounter].timestamp):
                     timeId = player.videobox[frameCounter].timestamp[0]
@@ -403,31 +447,90 @@ class VideoWidget(QWidget):
 
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
+                    if not rectPainter.isActive():
+                            rectPainter.begin(self)
                     rectPainter.setRenderHint(QPainter.Antialiasing)
                     rectPainter.setPen(QColor(self.getColorBox(player.videobox[frameCounter].annotation[i])))
                     rectPainter.drawRect(x,y,w,h)
+                    rectPainter.end()
+
+                    if not boxIdPainter.isActive():
+                        boxIdPainter.begin(self)
+                    boxIdPainter.setRenderHint(QPainter.Antialiasing)
+                    boxIdPainter.setPen(QColor(255,0,0))
+                    boxIdPainter.drawText(QRectF(x+2,y,w,h),Qt.AlignLeft,str(player.videobox[frameCounter].box_Id[i]))
+                    boxIdPainter.end()
 
         #Play the bound boxes from csv
         elif len(player.videobox) > 0 and frameCounter < len(player.time_buff):
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
-
                     if gantChart.getColor(player.videobox[frameCounter].annotation[i]) is None:
+                        if not rectPainter.isActive():
+                            rectPainter.begin(self)
                         rectPainter.setRenderHint(QPainter.Antialiasing)
                         rectPainter.setPen(Qt.blue)
                         rectPainter.drawRect(x,y,w,h)
+                        rectPainter.end()
+
+                        if not boxIdPainter.isActive():
+                            boxIdPainter.begin(self)
+                        boxIdPainter.setRenderHint(QPainter.Antialiasing)
+                        boxIdPainter.setPen(QColor(255,0,0))
+                        boxIdPainter.drawText(QRectF(x+2,y,w,h),Qt.AlignLeft,str(player.videobox[frameCounter].box_Id[i]))
+                        boxIdPainter.end()
+
+
+                        '''
+                        boxIdPainter.begin(self)
+                        boxIdPainter.setRenderHint(QPainter.Antialiasing)
+                        boxIdPainter.setPen(QColor(0,0,0))
+                        boxIdPainter.drawText(QRect(x,y,w,h),Qt.AlignLeft,str(player.videobox[frameCounter].box_Id[i]))
+                        boxIdPainter.end()
+                        '''
                     else:
+                        if not rectPainter.isActive():
+                            rectPainter.begin(self)
                         rectPainter.setRenderHint(QPainter.Antialiasing)
                         rectPainter.setPen(QColor(self.getColorBox(player.videobox[frameCounter].annotation[i])))
                         rectPainter.drawRect(x,y,w,h)
+                        rectPainter.end()
+                        '''
+                        boxIdPainter = QPainter()
+                        boxIdPainter.begin(self)
+                        if not boxIdPainter.isActive():
+                        '''
+                        if not boxIdPainter.isActive():
+                            boxIdPainter.begin(self)
+                        boxIdPainter.setRenderHint(QPainter.Antialiasing)
+                        boxIdPainter.setPen(QColor(255,0,0))
+                        boxIdPainter.drawText(QRectF(x+2,y,w,h),Qt.AlignLeft,str(player.videobox[frameCounter].box_Id[i]))
+                        boxIdPainter.end()
 
+                        '''
+                        #boxIdPainter.setRenderHint(QPainter.Antialiasing)
+                        boxIdPainter.begin(self)
+                        boxIdPainter.setPen(Qt.black)
+                        boxIdPainter.drawRect(x,y,x+2,y+2)
+                        boxIdPainter.end()
+                        '''
         if rectPainter.isActive():
             rectPainter.end()
 
+        '''
+        if boxIdPainter.isActive():
+            boxIdPainter.end()
+        '''
+
+    '''
+    def drawText(self,x,y,box_id,boxIdPainter):
+        boxIdPainter.setPen(QColor(0,0,0))
+        boxIdPainter.setFont(QFont('Decorative', 10))
+        boxIdPainter.drawText(QRect(x,y,x+10,y+5), Qt.AlignCenter, box_id)
+    '''
     #Mouse callback handling for Boxes
     def mousePressEvent(self,event):
-        global start_point
-        global end_point
+        global start_point,end_point
 
         if player.controlEnabled and QMouseEvent.button(event) == Qt.LeftButton:
              self.eraseRectPos= QMouseEvent.pos(event)
@@ -457,15 +560,14 @@ class VideoWidget(QWidget):
         for index,key in enumerate(classLabels):
             if action is key:
                 return annotationColors[index % len(annotationColors)]
-            if action is 'Clear':
+            elif action is 'Clear':
                 return '#0000FF'
 
 class textBox(QWidget):
 
     def __init__(self):
         global frameCounter
-        global posX
-        global posY
+        global posX,posY
 
         QWidget.__init__(self)
         self.setWindowTitle('Set Box id')
@@ -521,12 +623,11 @@ class textBox(QWidget):
 
         if self.writeEnable:
             while self.frameNumber < len(player.time_buff):
-                #for j  in range(len(player.videobox[self.frameNumber].box_Id[i])):
                 if old_value in player.videobox[self.frameNumber].box_Id:
                     player.videobox[self.frameNumber].box_Id[old_index] = self.box_Idx
                 self.frameNumber += 1
             self.writeEnable = False
-        #text_ = 'Speech::' + self.boxId.text()
+
         self.Ok.clicked.disconnect()
         self.close()
 
@@ -535,6 +636,8 @@ class VideoPlayer(QWidget):
         global gantChart
         super(VideoPlayer, self).__init__(parent)
         self.videobox = []
+        self.metric_buffer = []
+
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.VideoSurface)
 
         self.videoWidget = VideoWidget()
@@ -609,6 +712,8 @@ class VideoPlayer(QWidget):
     #Open CSV file
     def openCsv(self):
         self.json_Labels = []
+        self.box_buffer =[]
+
         fileName,_ =  QFileDialog.getOpenFileName(self, "Open Csv ", QDir.currentPath(),"*.csv")
         box_buff,metrics_buff = buffer_csv(fileName)
 
@@ -627,6 +732,14 @@ class VideoPlayer(QWidget):
                     self.videobox[counter].addBox(self.time_buff[counter],key,'Clear')
                 else:
                     self.videobox[counter].addBox(self.time_buff[counter],key,'Clear')
+            '''
+            #Test Boxes with different id
+            for i in xrange(10,70):
+                self.testBox = [map(list,100,50,50,50)]
+                for counter in self.videobox:
+                    counter.addBox()
+            '''
+
             #Parse json file
             try:
                 self.json_Labels = self.parseJson()
@@ -719,13 +832,14 @@ class VideoPlayer(QWidget):
             for key in i.annotation:
                 list_insert_class.append(key)
 
-        for metr in self.metric_buffer:
-            list_metr_param_1.append(metr[0])
-            list_metr_param_2.append(metr[1])
-            list_metr_param_3.append(metr[2])
-            list_metr_param_4.append(metr[3])
-            list_metr_param_5.append(metr[4])
-            list_metr_param_6.append(metr[5])
+        if len(self.metric_buffer) > 0:
+            for metr in self.metric_buffer:
+                list_metr_param_1.append(metr[0])
+                list_metr_param_2.append(metr[1])
+                list_metr_param_3.append(metr[2])
+                list_metr_param_4.append(metr[3])
+                list_metr_param_5.append(metr[4])
+                list_metr_param_6.append(metr[5])
 
         with open('boxes_updated.csv', 'w') as file:
             csv_writer = csv.writer(file, delimiter='\t')
@@ -737,6 +851,7 @@ class VideoPlayer(QWidget):
     def closeEvent(self,event):
         self.writeCSV(self.videobox)
 
+#Holds the bound box parameters
 class boundBox(object):
     def __init__(self,parent=None):
         super(boundBox, self).__init__()
@@ -787,17 +902,15 @@ class videoGantChart(FigureCanvas):
 class gantShow(videoGantChart):
     #Plot the chart
     def drawChart(self):
-        global duration, imageBuffer, framerate
-        global colorName
-        global annotations, annotationColors
-        global checkYaxis, xTicks
+        global imageBuffer, framerate
+        global annotationColors
+        global xTicks
         global classLabels,gantEnabled
 
         self.timeWithId = []
         self.tickY = []
         self.tickX = []
         self.boxAtYaxes = []
-        self.timeDuration = []
         self.axes.hlines(0,0,0)
 
         time_index = 0
@@ -815,6 +928,10 @@ class gantShow(videoGantChart):
                         break
                     self.boxAtYaxes.append([boxIdx,box_index.annotation[box_index.box_Id.index(boxIdx)]])
                     self.timeWithId.append([boxIdx,box_index.timestamp[box_index.box_Id.index(boxIdx)],box_index.annotation[box_index.box_Id.index(boxIdx)]])
+
+                    #self.boxAtYaxes.append([boxIdx,box_index.annotation[box_index.box_Id.index(boxIdx)]])
+                    #self.timeWithId.append([boxIdx,box_index.timestamp[box_index.box_Id.index(boxIdx)],box_index.annotation[box_index.box_Id.index(boxIdx)]])
+
 
             #Remove duplicates for the y axis
             temp_set = set(map(tuple,self.boxAtYaxes))
@@ -857,7 +974,7 @@ class gantShow(videoGantChart):
         for index,key in enumerate(classLabels):
             if action is key:
                 return annotationColors[index % len(annotationColors)]
-            if action is 'Clear':
+            elif action is 'Clear':
                 return '#0000FF'
 
 if __name__ == '__main__':
