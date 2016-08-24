@@ -411,15 +411,15 @@ class VideoWidget(QWidget):
         elif len(player.videobox) > 0 and frameCounter < len(player.time_buff):
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
-                    '''
+
                     if gantChart.getColor(player.videobox[frameCounter].annotation[i]) is None:
                         rectPainter.setRenderHint(QPainter.Antialiasing)
                         rectPainter.setPen(Qt.blue)
                         rectPainter.drawRect(x,y,w,h)
-                    '''
-                    rectPainter.setRenderHint(QPainter.Antialiasing)
-                    rectPainter.setPen(QColor(self.getColorBox(player.videobox[frameCounter].annotation[i])))
-                    rectPainter.drawRect(x,y,w,h)
+                    else:
+                        rectPainter.setRenderHint(QPainter.Antialiasing)
+                        rectPainter.setPen(QColor(self.getColorBox(player.videobox[frameCounter].annotation[i])))
+                        rectPainter.drawRect(x,y,w,h)
 
         if rectPainter.isActive():
             rectPainter.end()
@@ -694,11 +694,17 @@ class VideoPlayer(QWidget):
     def writeCSV(self,videobox):
         list_insert_time = []
         list_insert_box = []
+        list_insert_class = []
         list_insert_param_1 = []
         list_insert_param_2 = []
         list_insert_param_3 = []
         list_insert_param_4 = []
-        list_insert_class = []
+        list_metr_param_1 = []
+        list_metr_param_2 = []
+        list_metr_param_3 = []
+        list_metr_param_4 = []
+        list_metr_param_5 = []
+        list_metr_param_6 = []
 
         for i in self.videobox:
             for j in i.timestamp:
@@ -713,11 +719,19 @@ class VideoPlayer(QWidget):
             for key in i.annotation:
                 list_insert_class.append(key)
 
+        for metr in self.metric_buffer:
+            list_metr_param_1.append(metr[0])
+            list_metr_param_2.append(metr[1])
+            list_metr_param_3.append(metr[2])
+            list_metr_param_4.append(metr[3])
+            list_metr_param_5.append(metr[4])
+            list_metr_param_6.append(metr[5])
+
         with open('boxes_updated.csv', 'w') as file:
             csv_writer = csv.writer(file, delimiter='\t')
             headlines = ['Timestamp','Rect_id', 'Rect_x','Rect_y','Rect_W','Rect_H','Class','Meter_X','Meter_Y','Meter_Z','Top','Height' ,'Distance']
             csv_writer.writerow(headlines)
-            rows = zip(list_insert_time,list_insert_box,list_insert_param_1,list_insert_param_2,list_insert_param_3,list_insert_param_4,list_insert_class)
+            rows = zip(list_insert_time,list_insert_box,list_insert_param_1,list_insert_param_2,list_insert_param_3,list_insert_param_4,list_insert_class,list_metr_param_1,list_metr_param_2,list_metr_param_3,list_metr_param_4,list_metr_param_5,list_metr_param_6)
             csv_writer.writerows(rows)
 
     def closeEvent(self,event):
@@ -737,7 +751,7 @@ class boundBox(object):
         self.box_Param.append(key[1:])
         self.annotation.append(classify)
 
-    def removeAllBox(self):#,frameCounter):
+    def removeAllBox(self):
         self.timestamp[:] = []
         self.box_Id[:] = []
         self.box_Param[:] = []
@@ -799,9 +813,8 @@ class gantShow(videoGantChart):
                 for boxIdx in box_index.box_Id:
                     if boxIdx > len(box_index.box_Id):
                         break
-                    print boxIdx
-                    self.boxAtYaxes.append([boxIdx,box_index.annotation[boxIdx]])
-                    self.timeWithId.append([boxIdx,box_index.timestamp[boxIdx],box_index.annotation[boxIdx]])
+                    self.boxAtYaxes.append([boxIdx,box_index.annotation[box_index.box_Id.index(boxIdx)]])
+                    self.timeWithId.append([boxIdx,box_index.timestamp[box_index.box_Id.index(boxIdx)],box_index.annotation[box_index.box_Id.index(boxIdx)]])
 
             #Remove duplicates for the y axis
             temp_set = set(map(tuple,self.boxAtYaxes))
@@ -813,9 +826,9 @@ class gantShow(videoGantChart):
                 self.startTime,self.endTime = self.timeCalc(self.timeWithId,index)
                 if self.timeWithId[index][1] == self.endTime:
                     self.color = self.getColor(self.timeWithId[index][2])
-                    self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],self.timeWithId[index][2]]), self.startTime,self.endTime+(1/framerate),linewidth=10,color=self.color)
+                    self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],self.timeWithId[index][2]]), self.startTime,self.endTime+(1/framerate),linewidth=8,color=self.color)
                 self.color = self.getColor(self.timeWithId[index][2])
-                self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],self.timeWithId[index][2]]), self.startTime,self.endTime,linewidth=10,color=self.color)
+                self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],self.timeWithId[index][2]]), self.startTime,self.endTime,linewidth=8,color=self.color)
 
         for tick in self.axes.yaxis.get_major_ticks():
             tick.label.set_fontsize(9)
@@ -837,7 +850,6 @@ class gantShow(videoGantChart):
             curr += 1
             if curr > len(time)-1:
                 break
-        #print 'class:', temp_class,'id:', temp_id, starttime,endtime
         return starttime,endtime
 
     #Calculates the color for the gantChart and bound Boxes
