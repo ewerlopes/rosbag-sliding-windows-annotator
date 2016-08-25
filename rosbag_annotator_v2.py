@@ -299,10 +299,6 @@ class VideoWidget(QWidget):
 
         if not rectPainter.isActive():
             rectPainter.begin(self)
-        '''
-        if not boxIdPainter.isActive():
-            boxIdPainter.begin(self)
-        '''
 
         if (self.surface.isActive()):
             videoRect = QRegion(self.surface.videoRect())
@@ -479,15 +475,6 @@ class VideoWidget(QWidget):
                         boxIdPainter.setPen(QColor(255,0,0))
                         boxIdPainter.drawText(QRectF(x+2,y,w,h),Qt.AlignLeft,str(player.videobox[frameCounter].box_Id[i]))
                         boxIdPainter.end()
-
-
-                        '''
-                        boxIdPainter.begin(self)
-                        boxIdPainter.setRenderHint(QPainter.Antialiasing)
-                        boxIdPainter.setPen(QColor(0,0,0))
-                        boxIdPainter.drawText(QRect(x,y,w,h),Qt.AlignLeft,str(player.videobox[frameCounter].box_Id[i]))
-                        boxIdPainter.end()
-                        '''
                     else:
                         if not rectPainter.isActive():
                             rectPainter.begin(self)
@@ -495,11 +482,7 @@ class VideoWidget(QWidget):
                         rectPainter.setPen(QColor(self.getColorBox(player.videobox[frameCounter].annotation[i])))
                         rectPainter.drawRect(x,y,w,h)
                         rectPainter.end()
-                        '''
-                        boxIdPainter = QPainter()
-                        boxIdPainter.begin(self)
-                        if not boxIdPainter.isActive():
-                        '''
+
                         if not boxIdPainter.isActive():
                             boxIdPainter.begin(self)
                         boxIdPainter.setRenderHint(QPainter.Antialiasing)
@@ -507,27 +490,9 @@ class VideoWidget(QWidget):
                         boxIdPainter.drawText(QRectF(x+2,y,w,h),Qt.AlignLeft,str(player.videobox[frameCounter].box_Id[i]))
                         boxIdPainter.end()
 
-                        '''
-                        #boxIdPainter.setRenderHint(QPainter.Antialiasing)
-                        boxIdPainter.begin(self)
-                        boxIdPainter.setPen(Qt.black)
-                        boxIdPainter.drawRect(x,y,x+2,y+2)
-                        boxIdPainter.end()
-                        '''
         if rectPainter.isActive():
             rectPainter.end()
 
-        '''
-        if boxIdPainter.isActive():
-            boxIdPainter.end()
-        '''
-
-    '''
-    def drawText(self,x,y,box_id,boxIdPainter):
-        boxIdPainter.setPen(QColor(0,0,0))
-        boxIdPainter.setFont(QFont('Decorative', 10))
-        boxIdPainter.drawText(QRect(x,y,x+10,y+5), Qt.AlignCenter, box_id)
-    '''
     #Mouse callback handling for Boxes
     def mousePressEvent(self,event):
         global start_point,end_point
@@ -953,7 +918,7 @@ class gantShow(videoGantChart):
         self.axes.set_xticks(self.tickX)
         self.axes.set_yticks(self.tickY)
         self.axes.set_ylim([-1,len(self.boxAtYaxes)])
-        self.axes.set_yticklabels([str(index[0])+'::'+index[1] for index in self.boxAtYaxes]) #Onomata twn klasewn ston aksona y
+        self.axes.set_yticklabels(['<'+str(index[0])+'>::'+index[1] for index in self.boxAtYaxes]) #Onomata twn klasewn ston aksona y
         self.axes.grid(True)
 
     #Calculates the end time for each annotation to plot
