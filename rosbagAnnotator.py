@@ -113,10 +113,8 @@ def buffer_csv(csv_file):
                         box_buff.append((rec_id,x, y, width, height))
                         metrics.append((meter_X,meter_Y,meter_Z,top,meter_h,distance))
                 else:
-                    #index = [x.strip() for x in row_1].index('Rect_id')
                     for row in csv_reader:
                         (rec_id,x, y, width, height) = map(int, row[index:index + 5])
-                        #action = map(str,row[index+5])
                         (meter_X,meter_Y,meter_Z,top,meter_h,distance) = map(float, row[(index+6)::])
                         box_buff.append((rec_id,x, y, width, height))
                         box_buff_action.append(str(row[index+5]))
@@ -134,12 +132,14 @@ def get_bag_metadata(bag):
     duration       = info_dict['duration']
     topic_type       = topic['type']
     message_count = topic['messages']
-
+    topics_List = []
     #Messages for test
     print "\nRosbag topics found: "
     for top in topics:
         print "\t- ", top["topic"], "\n\t\t-Type: ", topic["type"],"\n\t\t-Fps: ", topic["frequency"]
-
+        topics_List.append(top["topic"])
+    topics_List = sorted(set(topics_List))
+    print topics_List
     #Checking if the topic is compressed
     if 'CompressedImage' in topic_type:
         compressed = True
@@ -149,7 +149,7 @@ def get_bag_metadata(bag):
     #Get framerate
     framerate = message_count/duration
 
-    return message_count,duration,compressed, framerate
+    return message_count,duration,compressed, framerate,topics_List
 
 
 class VideoWidgetSurface(QAbstractVideoSurface):
@@ -263,6 +263,7 @@ class VideoWidget(QWidget):
         self.buttonLabels = []
         classLabels = []
         imageBuffer = []
+
 
 
     def videoSurface(self):
@@ -622,6 +623,19 @@ class textBox(QWidget):
         self.Ok.clicked.disconnect()
         self.close()
 
+class TopicBox(QWidget):
+    def __init__(self):
+        QWidget.__init__(self)
+        self.setWindowTitle('Select Topics')
+        self.setGeometry(300, 300, 640, 480)
+        okButton = QPushButton("Ok", self)
+        okButton.move(280,380)
+        okButton.clicked.connect(self.close_window)
+
+
+    def close_window(self):
+        self.close()
+
 class VideoPlayer(QWidget):
     def __init__(self, parent=None):
         global gantChart
@@ -633,6 +647,7 @@ class VideoPlayer(QWidget):
 
         self.box_buffer = []
         self.metric_buffer = []
+        self.topic_window = TopicBox()
 
         self.videoWidget = VideoWidget()
         self.laserScan = laserGui.LS()
@@ -985,7 +1000,11 @@ class VideoPlayer(QWidget):
                 self.errorMessages(0)
 
             #Get bag metadata
-            (self.message_count,self.duration,compressed, framerate) = get_bag_metadata(bag)
+            (self.message_count,self.duration,compressed, framerate,self.topics) = get_bag_metadata(bag)
+
+            #Show the window to select topics
+            self.topic_window.show()
+
             #Buffer the rosbag, boxes, timestamps
             (imageBuffer, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
             (major, _, _) = cv2.__version__.split(".")
