@@ -6,12 +6,15 @@ It takes as input the rosbag file and a csv file if exists with annotated(or not
 The csv file holds the annotations from the video and some other useful metrics.
 It playbacks the rosbag file and give you some basic controls over the display and the ability to draw bound
 boxes on the video surface which saves them in the csv when exiting the application.
+A Gant is included below the video to show annotations from the video. The boxes are drown as: `<HumanId::Action>`
 
 ####This video player annotator is based on pyqt5 library.
 
+_labels.json_ file is used to add or remove any class label for annotation usage.
+
 ## DEPENDENCIES
 * **OS:** Ubuntu 16.04
-* **Python 2.7.XX**
+* **Python 2.7.xx**
 
     You can check your version with: `python -V` command
 
@@ -41,5 +44,9 @@ boxes on the video surface which saves them in the csv when exiting the applicat
 
 Run the annotator with `./rosbag_annotator_v2.py` command.
 
-_labels.json_ file is used to add or remove any class label for annotation usage.
+Use Left Click on top-left and bottom-right to draw a new bound box.
+Use right click and a drop down context menu shown to annotate or delete the the specific or all bound boxes
+on current frame.
+
+ 
 
