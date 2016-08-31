@@ -67,6 +67,8 @@ annotationColors = ['#00FF00', '#FF00FF','#FFFF00','#00FFFF','#FFA500','#C0C0C0'
 gantEnabled = False
 posSlider = 0
 durationSlider = 0
+#Declare the basic topics for the topic box
+BasicTopics = ['Audio', 'Depth', 'Video' , 'Laser']
 
 def buffer_data(bag, input_topic, compressed):
     image_buff = []
@@ -582,7 +584,6 @@ class textBox(QWidget):
         self.boxId.show()
 
     def boxChanged(self,text):
-
         self.box_Idx = text
 
     def closeTextBox(self):
@@ -625,22 +626,79 @@ class textBox(QWidget):
 
 class TopicBox(QWidget):
     def __init__(self):
-        QWidget.__init__(self)
+        #QWidget.__init__(self)
+        super(TopicBox,self).__init__()
+        global BasicTopics,Topics
         self.setWindowTitle('Select Topics')
-        self.setGeometry(300, 300, 640, 480)
+        self.setGeometry(300, 300, 480, 480)
+        self.move(QApplication.desktop().screen().rect().center()- self.rect().center())
         okButton = QPushButton("Ok", self)
-        okButton.move(280,380)
+        okButton.move(180,400)
         okButton.clicked.connect(self.close_window)
+        self.topic_options = []
+        self.chosen_topics = dict()
+        self.temp_topics = []
 
+        #Initialize dictionary
+        for key in BasicTopics:
+            self.chosen_topics[str(key.lower())] = 'Choose Topic'
+
+    def show_topics(self):
+        x = 30
+        y = 40
+        self.dropDownBox = []
+
+        for key  in range(len(Topics)):
+            self.temp_topics.append('Choose Topic')
+
+        for index,topic in enumerate(BasicTopics):
+            self.topic_options.append(QLabel(self))
+            self.topic_options[index].move(x,y)
+            self.topic_options[index].setText(BasicTopics[index])
+            self.dropDownBox.append(QComboBox(self))
+            y += 60
+
+        x = 120
+        y = 35
+        for key,option in enumerate(self.dropDownBox):
+            self.dropDownBox[key].addItem('Choose Topic')
+            self.dropDownBox[key].addItems(Topics)
+            self.dropDownBox[key].move(x, y)
+            self.dropDownBox[key].currentTextChanged.connect(self.selectionchange)
+            y += 60
+
+
+        self.show()
+
+    '''
+    def handle_option(self, text,index):
+        print index
+        for key,value in self.chosen_topics.items():
+            if text == 'Choose Topic':
+                break
+            if text != value:
+                self.chosen_topics[key] = text
+    '''
+
+    def selectionchange(self,text):
+        if text == 'Choose Topic':
+            pass
+        topic = BasicTopics[index].lower()
+
+        for key in range(len(dropDownBox)):
+            print dropDownBox.index(key)
+            pass
 
     def close_window(self):
+        print self.chosen_topics
         self.close()
 
 class VideoPlayer(QWidget):
     def __init__(self, parent=None):
-        global gantChart
+        global gantChart,Topics
         super(VideoPlayer, self).__init__(parent)
         self.videobox = []
+        Topics = None
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.VideoSurface)
         #self.setWindowFlags(self.windowFlags() | QtCore.Qt.CustomizeWindowHint)
         self.setWindowFlags( (self.windowFlags() | Qt.CustomizeWindowHint) & ~Qt.WindowMaximizeButtonHint)
@@ -984,8 +1042,7 @@ class VideoPlayer(QWidget):
         self.videoTime = self.mediaPlayer.position()
 
     def openFile(self):
-        global imageBuffer,framerate
-
+        global imageBuffer,framerate,Topics
         fileName,_ = QFileDialog.getOpenFileName(self, "Open Bag", QDir.currentPath(),"(*.bag)")
         print str(fileName)
 
@@ -1000,10 +1057,10 @@ class VideoPlayer(QWidget):
                 self.errorMessages(0)
 
             #Get bag metadata
-            (self.message_count,self.duration,compressed, framerate,self.topics) = get_bag_metadata(bag)
+            (self.message_count,self.duration,compressed, framerate,Topics) = get_bag_metadata(bag)
 
             #Show the window to select topics
-            self.topic_window.show()
+            self.topic_window.show_topics()
 
             #Buffer the rosbag, boxes, timestamps
             (imageBuffer, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
