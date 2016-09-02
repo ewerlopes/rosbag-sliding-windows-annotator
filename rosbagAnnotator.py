@@ -264,6 +264,7 @@ class VideoWidget(QWidget):
         self.deleteAllBoxes = False
         self.buttonLabels = []
         classLabels = []
+        highLabels = []
         imageBuffer = []
 
 
@@ -275,7 +276,7 @@ class VideoWidget(QWidget):
     def contextMenuEvent(self,event):
         global posX
         global posY
-        global classLabels,gantChart,gantEnabled
+        global classLabels,gantChart,gantEnabled,highLabels
 
         if event.reason() == QContextMenuEvent.Mouse:
             menu = QMenu(self)
@@ -286,9 +287,17 @@ class VideoWidget(QWidget):
 
             deleteBox = menu.addAction('Delete Box')
             deleteAllBoxes = menu.addAction('Delete All Boxes')
+            stopEvent = menu.addMenu('Stop Event')
+            for i in highLabels:
+                stopEvent.addAction(i)
             changeId = menu.addAction('Change Id')
             cancel = menu.addAction('Cancel')
             action = menu.exec_(self.mapToGlobal(event.pos()))
+            for index, key in enumerate(highLabels):
+                if action == key:
+                    self.annotClass = highLabels[i]
+                    self.annotEnabled = True
+
             for i,key in enumerate(self.buttonLabels):
                 if action == key:
                     self.annotClass = classLabels[i]
@@ -624,6 +633,7 @@ class textBox(QWidget):
         self.Ok.clicked.disconnect()
         self.close()
 
+#Class for Drop down boxes about topic selection
 class TopicBox(QWidget):
     def __init__(self):
         #QWidget.__init__(self)
@@ -632,9 +642,11 @@ class TopicBox(QWidget):
         self.setWindowTitle('Select Topics')
         self.setGeometry(300, 300, 480, 480)
         self.move(QApplication.desktop().screen().rect().center()- self.rect().center())
-        okButton = QPushButton("Ok", self)
-        okButton.move(180,400)
-        okButton.clicked.connect(self.close_window)
+        self.okButton = QPushButton("Ok", self)
+        self.okButton.move(180,400)
+        self.okButton.clicked.connect(self.close_window)
+        self.okButton.setEnabled(False)
+
         self.topic_options = []
         self.chosen_topics = dict()
         self.temp_topics = []
@@ -642,14 +654,12 @@ class TopicBox(QWidget):
         #Initialize dictionary
         for key in BasicTopics:
             self.chosen_topics[str(key.lower())] = 'Choose Topic'
+        print self.chosen_topics
 
     def show_topics(self):
         x = 30
         y = 40
         self.dropDownBox = []
-
-        for key  in range(len(Topics)):
-            self.temp_topics.append('Choose Topic')
 
         for index,topic in enumerate(BasicTopics):
             self.topic_options.append(QLabel(self))
@@ -667,30 +677,33 @@ class TopicBox(QWidget):
             self.dropDownBox[key].currentTextChanged.connect(self.selectionchange)
             y += 60
 
-
         self.show()
 
-    '''
-    def handle_option(self, text,index):
-        print index
-        for key,value in self.chosen_topics.items():
-            if text == 'Choose Topic':
-                break
-            if text != value:
-                self.chosen_topics[key] = text
-    '''
-
     def selectionchange(self,text):
-        if text == 'Choose Topic':
-            pass
-        topic = BasicTopics[index].lower()
+        topic_counter = 0
+        for key,option in enumerate(self.dropDownBox):
+            if self.dropDownBox[key].currentText() == 'Choose Topic':
+                topic_counter += 1
+        if topic_counter == len(BasicTopics):
+            self.okButton.setEnabled(False)
+        else:
+            self.okButton.setEnabled(True)
 
-        for key in range(len(dropDownBox)):
-            print dropDownBox.index(key)
-            pass
+        for key,option in enumerate(self.dropDownBox):
+            if text == self.dropDownBox[key].currentText():
+                if [self.dropDownBox[key].currentIndex(),text] not in self.temp_topics:
+                    self.temp_topics.append([self.dropDownBox[key].currentIndex(),text])
+        print self.temp_topics
 
+        '''
+        for index, key in  enumerate(Topics):
+            if text == key:
+                if [index,text] not in self.temp_topics or text == 'Choose Topic':
+                    self.temp_topics.append([index,text])
+                    #topic_index = index
+        '''
     def close_window(self):
-        print self.chosen_topics
+        #print self.chosen_topics
         self.close()
 
 class VideoPlayer(QWidget):
@@ -802,7 +815,7 @@ class VideoPlayer(QWidget):
         self.controlLayout.addWidget(self.rgbButton)
         self.controlLayout.addWidget(self.depthButton)
         self.controlLayout.setAlignment(Qt.AlignLeft)
-        #self.controlLayout.addStretch(-1)
+
         self.controlEnabled = False
 
         videoLayout = QVBoxLayout()
@@ -1064,6 +1077,7 @@ class VideoPlayer(QWidget):
 
             #Buffer the rosbag, boxes, timestamps
             (imageBuffer, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
+            #Check opencv version
             (major, _, _) = cv2.__version__.split(".")
             if major == '3':
                 fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
@@ -1105,7 +1119,7 @@ class VideoPlayer(QWidget):
 
     #Open CSV file
     def openCsv(self):
-        global classLabels,gantEnabled
+        global classLabels,gantEnabled,highLabels
         self.box_buffer = []
         self.metric_buffer = []
 
@@ -1138,10 +1152,14 @@ class VideoPlayer(QWidget):
                         self.videobox[counter].addBox(self.time_buff[counter],key,'Clear')
                     else:
                         self.videobox[counter].addBox(self.time_buff[counter],key,'Clear')
-
+            '''
+            for i in  self.videobox:
+                for k in i.annotation:
+                    print k
+            '''
             #Parse json file
             try:
-                classLabels = self.parseJson()
+                classLabels, highLabels = self.parseJson()
             except:
                 self.errorMessages(3)
 
@@ -1151,12 +1169,19 @@ class VideoPlayer(QWidget):
             gantChart.draw()
 
     def parseJson(self):
+        json_basicLabel = []
+        json_highLabel = []
+
         with open("labels.json") as json_file:
                 json_data = json.load(json_file)
                 json_label = []
-                for i in json_data['labels'] :
-                    json_label.append(i)
-        return json_label
+                for i in json_data['basiclabels'] :
+                    json_basicLabel.append(i)
+                print json_basicLabel
+                for j in json_data['highlevellabels']:
+                    json_highLabel.append(j)
+
+        return json_basicLabel,json_highLabel
 
     def errorMessages(self,index):
         msgBox = QMessageBox()
@@ -1285,7 +1310,7 @@ class boundBox(object):
         self.timestamp.append(time)
         self.box_Id.append(key[0])
         self.box_Param.append(key[1:])
-        self.annotation.append(classify)
+        self.annotation.append([classify])
 
     def removeAllBox(self):
         self.timestamp[:] = []
@@ -1329,6 +1354,7 @@ class gantShow(videoGantChart):
         global xTicks
         global classLabels,gantEnabled
 
+        temp_action = []
         self.timeWithId = []
         self.tickY = []
         self.tickX = []
@@ -1351,7 +1377,7 @@ class gantShow(videoGantChart):
                     self.timeWithId.append([boxIdx,box_index.timestamp[box_index.box_Id.index(boxIdx)],box_index.annotation[box_index.box_Id.index(boxIdx)]])
 
             #Remove duplicates for the y axis
-            temp_set = set(map(tuple,self.boxAtYaxes))
+            temp_set = set(map(tuple,temp_ids,temp_actions))
             self.boxAtYaxes = sorted(map(list,temp_set))
 
             for key in range(len(self.boxAtYaxes)):
