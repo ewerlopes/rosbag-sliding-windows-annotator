@@ -31,6 +31,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtMultimedia import *
 from PyQt5.QtMultimediaWidgets import *
 import warnings
+import itertools
 
 from matplotlib.widgets import Cursor
 from numpy import arange, sin, pi
@@ -366,7 +367,7 @@ class VideoWidget(QWidget):
         self.annotEnabled = False
         self.stopEventEnabled = False
 
-        print player.videobox[frameCounter].annotation
+        #print player.videobox[frameCounter].annotation
         #gantEnabled = True
         gantChart.axes.clear()
         gantChart.drawChart()
@@ -511,7 +512,8 @@ class VideoWidget(QWidget):
             #Annotate the box at remaining frames
             while self.frameNumber < len(player.time_buff):
                 if box >= len(player.videobox[self.frameNumber].box_Id) or box is None:
-                    break
+                    self.frameNumber += 1
+                    continue
                 player.videobox[self.frameNumber].changeClass(box,self.annotClass)
                 self.frameNumber += 1
 
@@ -599,7 +601,7 @@ class VideoWidget(QWidget):
         self.surface.updateVideoRect()
 
     def getColorBox(self,action):
-        print 'color::', action
+        #print 'color::', action
         global classLabels,highLabels
         for label in action:
             if label in classLabels:
@@ -611,25 +613,24 @@ class VideoWidget(QWidget):
             elif label in highLabels:
                 pass
 
-
         if action in classLabels:
-            print 'color basic'
+            #print 'color basic'
             for index,key in enumerate(classLabels):
                 if action == key:
-                    print 'color basic 1'
+                    #print 'color basic 1'
                     return annotationColors[index % len(annotationColors)]
                 elif action == 'Clear':
-                    print 'color basic 2'
+                    #print 'color basic 2'
                     return '#0000FF'
         else:
             print 'color high',action,type(action)
             print action
             for index,key in enumerate(player.videobox[frameCounter].annotation):
                 if key in classLabels:
-                    print 'color high 1'
+                    #print 'color high 1'
                     return annotationColors[classLabels.index(key) % len(annotationColors)]
                 elif key == 'Clear':
-                    print 'color high 2 '
+                    #print 'color high 2 '
                     return '#0000FF'
 
 class textBox(QWidget):
@@ -720,7 +721,7 @@ class TopicBox(QWidget):
         #Initialize dictionary
         for key in BasicTopics:
             self.chosen_topics[str(key.lower())] = 'Choose Topic'
-        print self.chosen_topics
+        #print self.chosen_topics
 
     def show_topics(self):
         x = 30
@@ -759,7 +760,7 @@ class TopicBox(QWidget):
             if text == self.dropDownBox[key].currentText():
                 if [self.dropDownBox[key].currentIndex(),text] not in self.temp_topics:
                     self.temp_topics.append([self.dropDownBox[key].currentIndex(),text])
-        print self.temp_topics
+        #print self.temp_topics
 
         '''
         for index, key in  enumerate(Topics):
@@ -1224,12 +1225,12 @@ class VideoPlayer(QWidget):
                 classLabels, highLabels = self.parseJson()
             except:
                 self.errorMessages(3)
-            '''
+
             gantEnabled = True
             gantChart.axes.clear()
             gantChart.drawChart()
             gantChart.draw()
-            '''
+
     def parseJson(self):
         json_basicLabel = []
         json_highLabel = []
@@ -1403,7 +1404,6 @@ class boundBox(object):
     #Handles the annotation for basic and high level classes
     def changeClass(self,boxid,classify):
         global classLabels, highLabels
-        print 'Classif from Change class: ', classify
         if classify in classLabels:
             for annot in self.annotation[boxid]:
                 if annot in classLabels or annot == 'Clear':
@@ -1456,59 +1456,150 @@ class gantShow(videoGantChart):
                 time_index += 1
 
         if gantEnabled:
-            for box_index in player.videobox:
-                for boxIdx in box_index.box_Id:
-                    if boxIdx > len(box_index.box_Id):
+            for frame_index in player.videobox:
+                for boxIdx in frame_index.box_Id:
+                    if boxIdx > frame_index.box_Id[-1]:
                         break
-                    self.boxAtYaxes.append([boxIdx,box_index.annotation[box_index.box_Id.index(boxIdx)]])
-                    self.timeWithId.append([boxIdx,box_index.timestamp[box_index.box_Id.index(boxIdx)],box_index.annotation[box_index.box_Id.index(boxIdx)]])
+                    for allactions in frame_index.annotation[boxIdx]:
+                        #print 'action', action
+                        if isinstance(allactions, list):
+                            for action in allactions:
+                                self.boxAtYaxes.append([boxIdx,action])
+                                self.timeWithId.append([boxIdx,frame_index.timestamp[frame_index.box_Id.index(boxIdx)],action])
+                        else:
+                            self.boxAtYaxes.append([boxIdx,allactions])
+                            self.timeWithId.append([boxIdx,frame_index.timestamp[frame_index.box_Id.index(boxIdx)],frame_index.annotation[frame_index.box_Id.index(boxIdx)]])
+            #print self.timeWithId
+            #Remove duplicates and sort the Y axes
+            self.boxAtYaxes.sort()
+            self.boxAtYaxes = list(k for k,_ in itertools.groupby(self.boxAtYaxes))
+            #The line above sorts Y axes by its action
+            #self.boxAtYaxes.sort(key=lambda x: x[1])
 
-            #Remove duplicates for the y axis
-            temp_set = set(map(tuple,temp_ids,temp_actions))
-            self.boxAtYaxes = sorted(map(list,temp_set))
 
             for key in range(len(self.boxAtYaxes)):
                 self.tickY.append(key)
             for index in range(len(self.timeWithId)):
-                self.startTime,self.endTime = self.timeCalc(self.timeWithId,index)
-                if self.timeWithId[index][1] == self.endTime:
-                    self.color = self.getColor(self.timeWithId[index][2])
-                    self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],self.timeWithId[index][2]]), self.startTime,self.endTime+(1/framerate),linewidth=8,color=self.color)
-                self.color = self.getColor(self.timeWithId[index][2])
-                self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],self.timeWithId[index][2]]), self.startTime,self.endTime,linewidth=8,color=self.color)
+                for action in self.timeWithId[index][2]:
+                    self.startTime,self.endTime = self.timeCalc(self.timeWithId,index,action)
+                    if self.timeWithId[index][1] == self.endTime:
+                        self.color = self.getColor(self.timeWithId[index][2],action)
+                        self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],action]), self.startTime,self.endTime+(1/framerate),linewidth=8,color=self.color)
+                    #To else ti fash??
+                    else:
+                        self.color = self.getColor(self.timeWithId[index][2],action)
+                        print 'Color:', self.color
+                        self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],action]), self.startTime,self.endTime,linewidth=8,color=self.color)
 
         for tick in self.axes.yaxis.get_major_ticks():
             tick.label.set_fontsize(9)
 
         #self.axes.set_xticks(self.tickX)
         self.axes.set_xticklabels([])
-        self.axes.get_xaxis().set_visible(False)
+        #self.axes.get_xaxis().set_visible(False)
         self.axes.set_yticks(self.tickY)
         self.axes.set_ylim([-1,len(self.boxAtYaxes)])
         self.axes.set_yticklabels(['<'+str(index[0])+'>::'+index[1] for index in self.boxAtYaxes])
         self.axes.grid(True)
 
     #Calculates the end time for each annotation to plot
-    def timeCalc(self,time,curr):
-        temp_class = time[curr][2]
+    def timeCalc(self,time,curr,activity):
+        #temp_class = time[curr][2]
         temp_id = time[curr][0]
-        starttime = time[curr][1]
-        endtime = time[curr][1]
-        while temp_class in time[curr] and temp_id in time[curr]:
-            endtime = time[curr][1]
+        startTime = time[curr][1]
+        endTime = time[curr][1]
+        while activity in time[curr][2] and temp_id in time[curr]:
+            endTime = time[curr][1]
             curr += 1
             if curr > len(time)-1:
                 break
-        return starttime,endtime
+        return startTime,endTime
 
     #Calculates the color for the gantChart and bound Boxes
-    def getColor(self,action):
-        global classLabels
-        for index,key in enumerate(classLabels):
-            if action == key:
-                return annotationColors[index % len(annotationColors)]
-            elif action == 'Clear':
-                return '#0000FF'
+    def getColor(self,actionList,action):
+        global classLabels,highLabels,annotationColors
+        #print 'actionList',actionList
+        if action == 'Clear':
+            return '#0000FF'
+        if action in classLabels:
+            for index,key in enumerate(classLabels):
+                if action == key:
+                    print '1'
+                    print annotationColors[index % len(annotationColors)]
+                    return annotationColors[index % len(annotationColors)]
+        elif action in highLabels:
+            action_index = highLabels.index(action)
+            for key in actionList:
+                if key in classLabels:# or key == 'Clear':
+                    baseActionColor = annotationColors[classLabels.index(key) % len(annotationColors)]
+                    break
+                elif key == 'Clear':
+                    baseActionColor = '#0000FF'
+                    break
+            baseActionColor = baseActionColor.lstrip('#')
+            #baseActionColor = '0x'+ baseActionColor
+            if action_index == 0:
+                actionColor = self.add_hex(baseActionColor,'020202')
+                #actionColor = actionColor.lstrip('0x')
+                #print 'index 0 :',str(actionColor).upper()
+                return '#'+str(actionColor).upper()
+            else:
+                scaler = self.mulhex(action_index)
+                print 'scaler', scaler
+                actionColor = self.add_hex(baseActionColor,scaler)
+                print 'actionColor :',actionColor
+                #actionColor = actionColor.lstrip('0x')
+                return '#'+str(actionColor).upper()
+
+    #Multiplies the scaler color
+    def mulhex(self,action_idx):
+        scaler = '020202'
+        action_idx *= 2
+        scaler = hex(int(str(action_idx), 16) + int(scaler, 16))
+        scaler = scaler.lstrip('0x')
+        #print 'scaler = ', scaler
+        if len(scaler) > 6:
+            scaler = scaler[:6]
+        elif len(scaler) == 5:
+            scaler = '0' + scaler
+        elif len(scaler) == 4:
+            scaler = '00' + scaler
+        elif len(scaler) == 3:
+            scaler = '000' + scaler
+        elif len(scaler) == 2:
+            scaler = '0000' + scaler
+        elif len(scaler) == 4:
+            scaler = '00000' + scaler
+        return scaler
+        '''
+        counter = 1
+        print 'before scaler:',scaler
+        for num in range(len(scaler)):
+            print 'num==',num
+            if counter % 2 == 0:
+                scaler[num] = str(int(scaler[num]) + action_idx)
+            counter +=1
+        print 'Scaler:: ', scaler
+        return scaler
+        '''
+
+    #Returns the added hex
+    def add_hex(self,hex1, hex2):
+        color =  hex(int(hex1, 16) + int(hex2, 16))
+        color = color.lstrip('0x')
+        if len(color)>6:
+            color = color[:6]
+        elif len(color) == 5:
+            color = '0' + color
+        elif len(color) == 4:
+            color = '00' + color
+        elif len(color) == 3:
+            color = '000' + color
+        elif len(color) == 2:
+            color = '0000' + color
+        elif len(color) == 4:
+            color = '00000' + color
+        return color
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
