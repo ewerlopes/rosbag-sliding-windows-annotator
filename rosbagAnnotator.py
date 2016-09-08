@@ -32,6 +32,7 @@ from PyQt5.QtMultimedia import *
 from PyQt5.QtMultimediaWidgets import *
 import warnings
 import itertools
+import ast
 
 from matplotlib.widgets import Cursor
 from numpy import arange, sin, pi
@@ -65,6 +66,7 @@ start_point = False
 end_point = False
 boxInitialized = False
 annotationColors = ['#00FF00', '#FF00FF','#FFFF00','#00FFFF','#FFA500','#C0C0C0','#000000','#EAEAEA']
+eventColors = ['#9fbf1f','#087649','#0a5b75','#181a8d','#7969b0','#76a9ea','#bef36e','#edfa84','#f18ed2','#753e20']
 gantEnabled = False
 posSlider = 0
 durationSlider = 0
@@ -120,7 +122,16 @@ def buffer_csv(csv_file):
                         (rec_id,x, y, width, height) = map(int, row[index:index + 5])
                         (meter_X,meter_Y,meter_Z,top,meter_h,distance) = map(float, row[(index+6)::])
                         box_buff.append((rec_id,x, y, width, height))
-                        box_buff_action.append(str(row[index+5]))
+                        if  isinstance(row[index+5],str):
+                            string = row[index+5]
+                            if string.startswith('[') and string.endswith(']'):
+                                #Transform a string of list to list
+                                string = ast.literal_eval(string)
+                                box_buff_action.append(string)
+                            else:
+                                box_buff_action.append(string)
+                        else:
+                            box_buff_action.append(row[index+5])
                         metrics.append((meter_X,meter_Y,meter_Z,top,meter_h,distance))
             except:
                 return False,False,False
@@ -496,7 +507,7 @@ class VideoWidget(QWidget):
                     boxIdPainter.setPen(QColor(255,0,0))
                     boxIdPainter.drawText(QRectF(x+2,y,w,h),Qt.AlignLeft,str(player.videobox[frameCounter].box_Id[i]))
                     boxIdPainter.end()
-                    player.videobox[frameCounter].changeClass(i,self.annotClass)
+                    player.videobox[frameCounter].changeClass(i,str(self.annotClass))
                     box = i
                 else:
                     if not rectPainter.isActive():
@@ -519,7 +530,7 @@ class VideoWidget(QWidget):
                 if box >= len(player.videobox[self.frameNumber].box_Id) or box is None:
                     self.frameNumber += 1
                     continue
-                player.videobox[self.frameNumber].changeClass(box,self.annotClass)
+                player.videobox[self.frameNumber].changeClass(box,str(self.annotClass))
                 self.frameNumber += 1
 
         elif start_point is True and end_point is True:
@@ -606,7 +617,6 @@ class VideoWidget(QWidget):
         self.surface.updateVideoRect()
 
     def getColorBox(self,action):
-        #print 'color::', action
         global classLabels,highLabels
         for label in action:
             if label in classLabels:
@@ -619,23 +629,16 @@ class VideoWidget(QWidget):
                 pass
 
         if action in classLabels:
-            #print 'color basic'
             for index,key in enumerate(classLabels):
                 if action == key:
-                    #print 'color basic 1'
                     return annotationColors[index % len(annotationColors)]
                 elif action == 'Clear':
-                    #print 'color basic 2'
                     return '#0000FF'
         else:
-            #print 'color high',action,type(action)
-            #print action
             for index,key in enumerate(player.videobox[frameCounter].annotation):
                 if key in classLabels:
-                    #print 'color high 1'
                     return annotationColors[classLabels.index(key) % len(annotationColors)]
                 elif key == 'Clear':
-                    #print 'color high 2 '
                     return '#0000FF'
 
 class textBox(QWidget):
@@ -706,9 +709,8 @@ class textBox(QWidget):
         self.close()
 
 #Class for Drop down boxes about topic selection
-class TopicBox(QWidget):
+class TopicBox(QDialog):
     def __init__(self):
-        #QWidget.__init__(self)
         super(TopicBox,self).__init__()
         global BasicTopics,Topics
         self.setWindowTitle('Select Topics')
@@ -719,18 +721,14 @@ class TopicBox(QWidget):
         self.okButton.clicked.connect(self.close_window)
         self.okButton.setEnabled(False)
 
+        self.okButtonPush = False
         self.topic_options = []
-        self.chosen_topics = dict()
-        self.temp_topics = []
-
-        #Initialize dictionary
-        for key in BasicTopics:
-            self.chosen_topics[str(key.lower())] = 'Choose Topic'
 
     def show_topics(self):
         x = 30
         y = 40
         self.dropDownBox = []
+        self.temp_topics = []
 
         for index,topic in enumerate(BasicTopics):
             self.topic_options.append(QLabel(self))
@@ -747,7 +745,7 @@ class TopicBox(QWidget):
             self.dropDownBox[key].move(x, y)
             self.dropDownBox[key].currentTextChanged.connect(self.selectionchange)
             y += 60
-        print self.chosen_topics
+
         self.show()
 
     def selectionchange(self,text):
@@ -767,7 +765,6 @@ class TopicBox(QWidget):
         if len(self.temp_topics) > 0:
             for idx,value in enumerate(self.temp_topics):
                 if value[0] == ddbox_index:
-                    print '2'
                     self.temp_topics.pop(idx)
                     self.temp_topics.append([ddbox_index,text])
             if [ddbox_index,text] not in self.temp_topics:
@@ -778,25 +775,23 @@ class TopicBox(QWidget):
     def close_window(self):
         #Sort by its first element
         self.temp_topics.sort(key=lambda x: x[0])
-        print self.temp_topics
-        print 'bbb'
+        self.okButtonPush = True
         self.close()
 
     def closeEvent(self,event):
-        msgBox = QMessageBox()
-        msgBox.setIcon(msgBox.Question)
-        msgBox.setText("Program will exit, are you sure?")
-        msgBox.resize(140,60)
-        msgBox.setStandardButtons(QMessageBox.No | QMessageBox.Yes)
-        msgBox.setDefaultButton(QMessageBox.No)
-        ret = msgBox.exec_()
-        if ret == QMessageBox.Yes:
-            self.close()
-            player.close()
-        elif ret == QMessageBox.No:
-            #player.topic_window.show_topics()
-            #print 'aaa'
-            pass
+        if not self.okButtonPush:
+            msgBox = QMessageBox()
+            msgBox.setIcon(msgBox.Question)
+            msgBox.setText("Program will exit, are you sure?")
+            msgBox.resize(140,60)
+            msgBox.setStandardButtons(QMessageBox.No | QMessageBox.Yes)
+            msgBox.setDefaultButton(QMessageBox.No)
+            ret = msgBox.exec_()
+            if ret == QMessageBox.Yes:
+                self.close()
+                player.close()
+            elif ret == QMessageBox.No:
+                event.ignore()
 
 class VideoPlayer(QWidget):
     def __init__(self, parent=None):
@@ -1234,9 +1229,9 @@ class VideoPlayer(QWidget):
                 for idx,key in enumerate(self.box_buffer):
                     if key[0] == 0:
                         counter += 1
-                        self.videobox[counter].addBox(self.time_buff[counter],key,[self.box_actionBuffer[idx]])
+                        self.videobox[counter].addBox(self.time_buff[counter],key,self.box_actionBuffer[idx])
                     else:
-                        self.videobox[counter].addBox(self.time_buff[counter],key,[self.box_actionBuffer[idx]])
+                        self.videobox[counter].addBox(self.time_buff[counter],key,self.box_actionBuffer[idx])
             else:
                 for idx,key in enumerate(self.box_buffer):
                     if key[0] == 0:
@@ -1244,6 +1239,11 @@ class VideoPlayer(QWidget):
                         self.videobox[counter].addBox(self.time_buff[counter],key,['Clear'])
                     else:
                         self.videobox[counter].addBox(self.time_buff[counter],key,['Clear'])
+
+            for box in self.videobox:
+                for annot in box.annotation:
+                    print 'player annot ::',annot, type(annot)
+
 
             #Parse json file
             try:
@@ -1363,6 +1363,8 @@ class VideoPlayer(QWidget):
                 list_insert_param_4.append(l[3])
             for key in i.annotation:
                 list_insert_class.append(key)
+
+        print 'List insert::', list_insert_class
 
         if len(self.metric_buffer) > 0:
             for metr in self.metric_buffer:
@@ -1508,12 +1510,12 @@ class gantShow(videoGantChart):
                 for action in self.timeWithId[index][2]:
                     self.startTime,self.endTime = self.timeCalc(self.timeWithId,index,action)
                     if self.timeWithId[index][1] == self.endTime:
-                        self.color = self.getColor(self.timeWithId[index][2],action)
+                        self.color = self.getColor(action)
                         self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],action]), self.startTime,self.endTime+(1/framerate),linewidth=8,color=self.color)
                     #To else ti fash??
                     else:
-                        self.color = self.getColor(self.timeWithId[index][2],action)
-                        print 'Color:', self.color
+                        self.color = self.getColor(action)
+                        #print 'Color:', self.color
                         self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],action]), self.startTime,self.endTime,linewidth=8,color=self.color)
 
         for tick in self.axes.yaxis.get_major_ticks():
@@ -1541,83 +1543,20 @@ class gantShow(videoGantChart):
         return startTime,endTime
 
     #Calculates the color for the gantChart and bound Boxes
-    def getColor(self,actionList,action):
-        global classLabels,highLabels,annotationColors
-        #print 'actionList',actionList
-        if action == 'Clear':
+    def getColor(self,label):
+        global classLabels,highLabels
+        if label == 'Clear':
+                #color = 'Clear'
             return '#0000FF'
-        if action in classLabels:
-            for index,key in enumerate(classLabels):
-                if action == key:
-                    print '1'
-                    print annotationColors[index % len(annotationColors)]
-                    return annotationColors[index % len(annotationColors)]
-        elif action in highLabels:
-            action_index = highLabels.index(action)
-            for key in actionList:
-                if key in classLabels:# or key == 'Clear':
-                    baseActionColor = annotationColors[classLabels.index(key) % len(annotationColors)]
-                    action_index += 1
-                    break
-                elif key == 'Clear':
-                    baseActionColor = '#0000FF'
-                    action_index =1
-                    break
-            #baseActionColor = baseActionColor.lstrip('#')
-            #baseActionColor = '0x'+ baseActionColor
-            #return  self.color_variant(baseActionColor,1)
-            color = self.color_variant(baseActionColor)#,action_index)
-            color = color.lstrip('#')
-            if len(color)>6:
-                color = color[:6]
-                return '#' + color
-            elif len(color) == 5:
-                color = '0' + color
-                #color = color + '0'
-                return '#' + color
-            elif len(color) == 4:
-                color = '00' + color
-                #color = color + '00'
-                return '#' + color
-
-            '''
-            if action_index == 0:
-                actionColor = self.add_hex(baseActionColor,'020202')
-                #actionColor = actionColor.lstrip('0x')
-                #print 'index 0 :',str(actionColor).upper()
-                return '#'+str(actionColor).upper()
-            else:
-                scaler = self.mulhex(action_index)
-                print 'scaler', scaler
-                actionColor = self.add_hex(baseActionColor,scaler)
-                print 'actionColor :',actionColor
-                #actionColor = actionColor.lstrip('0x')
-                return '#'+str(actionColor).upper()
-
-    #Multiplies the scaler color
-    def mulhex(self,action_idx):
-        scaler = '020202'
-        action_idx *= 2
-        scaler = hex(int(str(action_idx), 16) + int(scaler, 16))
-        scaler = scaler.lstrip('0x')
-        #print 'scaler = ', scaler
-        if len(scaler) > 6:
-            scaler = scaler[:6]
-        elif len(scaler) == 5:
-            scaler = '0' + scaler
-        elif len(scaler) == 4:
-            scaler = '00' + scaler
-        elif len(scaler) == 3:
-            scaler = '000' + scaler
-        elif len(scaler) == 2:
-            scaler = '0000' + scaler
-        elif len(scaler) == 4:
-            scaler = '00000' + scaler
-        return scaler
-        '''
+        elif label in classLabels:
+                #color = label
+            return annotationColors[classLabels.index(label) % len(classLabels)]
+        elif label in highLabels:
+            return eventColors[highLabels.index(label) % len(highLabels)]
+    '''
     def color_variant(self,hex_color, brightness_offset=1):
         """ takes a color like #87c95f and produces a lighter or darker variant """
-        print 'type:::', type(hex_color)
+        #print 'type:::', type(hex_color)
         if len(hex_color) != 7:
             raise Exception("Passed %s into color_variant(), needs to be in #87c95f format." % hex_color)
         rgb_hex = [hex_color[x:x+2] for x in [1, 3, 5]]
@@ -1625,17 +1564,6 @@ class gantShow(videoGantChart):
         new_rgb_int = [min([255, max([0, i])]) for i in new_rgb_int] # make sure new values are between 0 and 255
         # hex() produces "0x88", we want just "88"
         return "#" + "".join([hex(i)[2:] for i in new_rgb_int])
-        '''
-        counter = 1
-        print 'before scaler:',scaler
-        for num in range(len(scaler)):
-            print 'num==',num
-            if counter % 2 == 0:
-                scaler[num] = str(int(scaler[num]) + action_idx)
-            counter +=1
-        print 'Scaler:: ', scaler
-        return scaler
-        '''
 
     #Returns the added hex
     def add_hex(self,hex1, hex2):
@@ -1654,6 +1582,7 @@ class gantShow(videoGantChart):
         elif len(color) == 4:
             color = '00000' + color
         return color
+    '''
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
