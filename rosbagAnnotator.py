@@ -746,7 +746,12 @@ class TopicBox(QDialog):
             self.dropDownBox[key].currentTextChanged.connect(self.selectionchange)
             y += 60
 
-        self.show()
+        #initialize list
+        for index in range(len(BasicTopics)) :
+            self.temp_topics.append([index,'Choose Topic'])
+
+
+        self.exec_()
 
     def selectionchange(self,text):
         topic_counter = 0
@@ -766,16 +771,17 @@ class TopicBox(QDialog):
             for idx,value in enumerate(self.temp_topics):
                 if value[0] == ddbox_index:
                     self.temp_topics.pop(idx)
-                    self.temp_topics.append([ddbox_index,text])
+                    self.temp_topics.append([ddbox_index,str(text)])
             if [ddbox_index,text] not in self.temp_topics:
-                self.temp_topics.append([ddbox_index,text])
+                self.temp_topics.append([ddbox_index,str(text)])
         else:
-            self.temp_topics.append([ddbox_index,text])
+            self.temp_topics.append([ddbox_index,str(text)])
 
     def close_window(self):
         #Sort by its first element
         self.temp_topics.sort(key=lambda x: x[0])
         self.okButtonPush = True
+        print self.temp_topics
         self.close()
 
     def closeEvent(self,event):
@@ -1082,8 +1088,6 @@ class VideoPlayer(QWidget):
     #----------------------
     def checkPositionToStop(self):
         self.time_ = self.player.position()
-        #self.positionSlider.setValue(self.time_/1000)
-        #print self.time_
         if self.time_ >= self.end:
             self.audioStop()
             self.player.setPosition(self.start)
@@ -1160,10 +1164,13 @@ class VideoPlayer(QWidget):
             (self.message_count,self.duration,compressed, framerate,Topics) = get_bag_metadata(bag)
 
             #Show the window to select topics
+            #self.topic_window.setModal(True)
+            self.topic_window.setWindowModality(Qt.ApplicationModal)
             self.topic_window.show_topics()
 
             #Buffer the rosbag, boxes, timestamps
-            (imageBuffer, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
+            #(imageBuffer, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
+            (imageBuffer, self.time_buff) = buffer_data(bag, self.topic_window.temp_topics[2][1] , compressed)
             #Check opencv version
             (major, _, _) = cv2.__version__.split(".")
             if major == '3':
@@ -1239,11 +1246,6 @@ class VideoPlayer(QWidget):
                         self.videobox[counter].addBox(self.time_buff[counter],key,['Clear'])
                     else:
                         self.videobox[counter].addBox(self.time_buff[counter],key,['Clear'])
-
-            for box in self.videobox:
-                for annot in box.annotation:
-                    print 'player annot ::',annot, type(annot)
-
 
             #Parse json file
             try:
@@ -1363,8 +1365,6 @@ class VideoPlayer(QWidget):
                 list_insert_param_4.append(l[3])
             for key in i.annotation:
                 list_insert_class.append(key)
-
-        print 'List insert::', list_insert_class
 
         if len(self.metric_buffer) > 0:
             for metr in self.metric_buffer:
@@ -1488,7 +1488,6 @@ class gantShow(videoGantChart):
                     if boxIdx > frame_index.box_Id[-1]:
                         break
                     for allactions in frame_index.annotation[boxIdx]:
-                        #print 'action', action
                         if isinstance(allactions, list):
                             for action in allactions:
                                 self.boxAtYaxes.append([boxIdx,action])
@@ -1496,13 +1495,9 @@ class gantShow(videoGantChart):
                         else:
                             self.boxAtYaxes.append([boxIdx,allactions])
                             self.timeWithId.append([boxIdx,frame_index.timestamp[frame_index.box_Id.index(boxIdx)],frame_index.annotation[frame_index.box_Id.index(boxIdx)]])
-            #print self.timeWithId
             #Remove duplicates and sort the Y axes
             self.boxAtYaxes.sort()
             self.boxAtYaxes = list(k for k,_ in itertools.groupby(self.boxAtYaxes))
-            #The line above sorts Y axes by its action
-            #self.boxAtYaxes.sort(key=lambda x: x[1])
-
 
             for key in range(len(self.boxAtYaxes)):
                 self.tickY.append(key)
@@ -1512,18 +1507,14 @@ class gantShow(videoGantChart):
                     if self.timeWithId[index][1] == self.endTime:
                         self.color = self.getColor(action)
                         self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],action]), self.startTime,self.endTime+(1/framerate),linewidth=8,color=self.color)
-                    #To else ti fash??
                     else:
                         self.color = self.getColor(action)
-                        #print 'Color:', self.color
                         self.axes.hlines(self.boxAtYaxes.index([self.timeWithId[index][0],action]), self.startTime,self.endTime,linewidth=8,color=self.color)
 
         for tick in self.axes.yaxis.get_major_ticks():
             tick.label.set_fontsize(9)
 
-        #self.axes.set_xticks(self.tickX)
         self.axes.set_xticklabels([])
-        #self.axes.get_xaxis().set_visible(False)
         self.axes.set_yticks(self.tickY)
         self.axes.set_ylim([-1,len(self.boxAtYaxes)])
         self.axes.set_yticklabels(['<'+str(index[0])+'>::'+index[1] for index in self.boxAtYaxes])
@@ -1531,7 +1522,6 @@ class gantShow(videoGantChart):
 
     #Calculates the end time for each annotation to plot
     def timeCalc(self,time,curr,activity):
-        #temp_class = time[curr][2]
         temp_id = time[curr][0]
         startTime = time[curr][1]
         endTime = time[curr][1]
@@ -1553,36 +1543,6 @@ class gantShow(videoGantChart):
             return annotationColors[classLabels.index(label) % len(classLabels)]
         elif label in highLabels:
             return eventColors[highLabels.index(label) % len(highLabels)]
-    '''
-    def color_variant(self,hex_color, brightness_offset=1):
-        """ takes a color like #87c95f and produces a lighter or darker variant """
-        #print 'type:::', type(hex_color)
-        if len(hex_color) != 7:
-            raise Exception("Passed %s into color_variant(), needs to be in #87c95f format." % hex_color)
-        rgb_hex = [hex_color[x:x+2] for x in [1, 3, 5]]
-        new_rgb_int = [int(hex_value, 16) + brightness_offset for hex_value in rgb_hex]
-        new_rgb_int = [min([255, max([0, i])]) for i in new_rgb_int] # make sure new values are between 0 and 255
-        # hex() produces "0x88", we want just "88"
-        return "#" + "".join([hex(i)[2:] for i in new_rgb_int])
-
-    #Returns the added hex
-    def add_hex(self,hex1, hex2):
-        color =  hex(int(hex1, 16) + int(hex2, 16))
-        color = color.lstrip('0x')
-        if len(color)>6:
-            color = color[:6]
-        elif len(color) == 5:
-            color = '0' + color
-        elif len(color) == 4:
-            color = '00' + color
-        elif len(color) == 3:
-            color = '000' + color
-        elif len(color) == 2:
-            color = '0000' + color
-        elif len(color) == 4:
-            color = '00000' + color
-        return color
-    '''
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
