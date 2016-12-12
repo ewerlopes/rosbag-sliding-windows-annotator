@@ -32,7 +32,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtMultimedia import *
 from PyQt5.QtMultimediaWidgets import *
 import warnings
-
+import numpy as np
 from matplotlib.widgets import Cursor
 from numpy import arange, sin, pi
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -46,6 +46,7 @@ end_point = False
 boxInitialized = False
 annotationColors = ['#00FF00', '#FF00FF','#FFFF00','#00FFFF','#FFA500']
 gantEnabled = False
+frameCounter = 0
 
 def buffer_data(bag, input_topic, compressed):
     image_buff = []
@@ -66,7 +67,8 @@ def buffer_data(bag, input_topic, compressed):
                 print e
         else:
             nparr = np.fromstring(msg.data, np.uint8)
-            cv_image = cv2.imdecode(nparr, cv2.CV_LOAD_IMAGE_COLOR)
+            cv_image = cv2.imdecode(nparr, 1) #### cv2.CV_LOAD_IMAGE_COLOR has as enum value 1.
+            ## TODO: fix the problem with the this enum value.
 
         image_buff.append(cv_image)
         time_buff.append(t.to_sec() - start_time.to_sec())
@@ -109,7 +111,7 @@ def buffer_csv(csv_file):
 def get_bag_metadata(bag):
     info_dict       = yaml.load(bag._get_yaml_info())
     topics             = info_dict['topics']
-    topic            = topics[1]
+    topic            = topics[0]
     duration       = info_dict['duration']
     topic_type       = topic['type']
     message_count = topic['messages']
@@ -117,8 +119,10 @@ def get_bag_metadata(bag):
     #Messages for test
     print "\nRosbag topics found: "
     for top in topics:
-        print "\t- ", top["topic"], "\n\t\t-Type: ", topic["type"],"\n\t\t-Fps: ", topic["frequency"]
+        print "\t- ", top["topic"], "\n\t\t-Type: ", top["type"],"\n\t\t-Fps: ", top["frequency"]
 
+    print 23 * '#'
+    print topic_type
     #Checking if the topic is compressed
     if 'CompressedImage' in topic_type:
         compressed = True
@@ -660,7 +664,7 @@ class VideoPlayer(QWidget):
             #Get bag metadata
             (self.message_count,self.duration,compressed, framerate) = get_bag_metadata(bag)
             #Buffer the rosbag, boxes, timestamps
-            (imageBuffer, self.time_buff) = buffer_data(bag, "/camera/rgb/image_raw", compressed)
+            (imageBuffer, self.time_buff) = buffer_data(bag, "/ext_usb_camera/image/compressed", compressed)
             fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
             height, width, bytesPerComponent = imageBuffer[0].shape
             video_writer = cv2.VideoWriter("myvid.avi", fourcc, framerate, (width,height), cv2.IMREAD_COLOR)
@@ -673,7 +677,7 @@ class VideoPlayer(QWidget):
                     video_writer.write(frame)
                 video_writer.release()
 
-                self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile("/home/dimitris/GitProjects/rosbag_annotator/myvid.avi")))
+                self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile("/home/ewerlopes/developer/rosbag_annotator/myvid.avi")))
                 self.playButton.setEnabled(True)
 
     #Open CSV file
