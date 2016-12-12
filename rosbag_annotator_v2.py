@@ -611,6 +611,14 @@ class VideoPlayer(QWidget):
 
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.VideoSurface)
 
+        self.label_configs = self.parseLabelConfig()
+        self.tab_names = dict([])
+
+        for t_name in self.label_configs.keys():
+            self.tab_names[t_name] = self.label_configs[t_name]
+
+        print self.tab_names
+
         self.videoWidget = VideoWidget()
         self.openButton = QPushButton("Open...")
         self.importCsv = QPushButton("Import CSV...")
@@ -634,8 +642,13 @@ class VideoPlayer(QWidget):
         self.positionSlider.setRange(0, 0)
         self.positionSlider.sliderMoved.connect(self.setPosition)
 
+        # Create tabs
+        self.tabs = QTabWidget()
+        self.tab1 = QWidget()
+        self.tab2 = QWidget()
+
         # Create a label widget with our text
-        self.label = QLabel('Hello, world!')
+        #self.label = QLabel('Hello, world!')
 
         self.controlLayout = QHBoxLayout()
         self.controlLayout.setContentsMargins(0, 0, 0, 0)
@@ -671,6 +684,8 @@ class VideoPlayer(QWidget):
                 }"
 
         self.act_group_box.setStyleSheet(styleSheet)
+        self.exp_group_box.setStyleSheet(styleSheet)
+        self.ctrl_group_box.setStyleSheet(styleSheet)
 
 
         # Create an array of radio buttons for the given tag option
@@ -683,25 +698,54 @@ class VideoPlayer(QWidget):
 
         # Set a radio button to be checked by default
         self.act_opts[0].setChecked(True)
+        self.exp_opts[0].setChecked(True)
+        self.ctrl_opts[0].setChecked(True)
 
         # Radio buttons usually are in a vertical layout
         self.act_button_layout = QVBoxLayout()
+        self.exp_button_layout = QVBoxLayout()
+        self.ctrl_button_layout = QVBoxLayout()
 
         # Create a button group for radio buttons
         self.act_button_group = QButtonGroup()
+        self.exp_button_group = QButtonGroup()
+        self.ctrl_button_group = QButtonGroup()
 
         for i in range(len(self.act_opts)):
             # Add each radio button to the button layout
             self.act_button_layout.addWidget(self.act_opts[i])
+            self.exp_button_layout.addWidget(self.exp_opts[i])
+            self.ctrl_button_layout.addWidget(self.ctrl_opts[i])
+
             # Add each radio button to the button group & give it an ID of i
             self.act_button_group.addButton(self.act_opts[i], i)
-            # Connect each radio button to a method to run when it's clicked
-            #self.connect(act_opts[i], SIGNAL("clicked()"), self.radio_button_clicked)
+            self.exp_button_group.addButton(self.exp_opts[i], i)
+            self.ctrl_button_group.addButton(self.ctrl_opts[i], i)
 
         # Set the layout of the group box to the button layout
         self.act_button_layout.addStretch(1)
+        self.exp_button_layout.addStretch(1)
+        self.ctrl_button_layout.addStretch(1)
         self.act_group_box.setLayout(self.act_button_layout)
+        self.exp_group_box.setLayout(self.exp_button_layout)
+        self.ctrl_group_box.setLayout(self.ctrl_button_layout)
         self.annotationLayout.addWidget(self.act_group_box)
+        self.annotationLayout.addWidget(self.exp_group_box)
+        self.annotationLayout.addWidget(self.ctrl_group_box)
+
+        self.tag_button_layout = QHBoxLayout()
+        self.tag_button_layout.setContentsMargins(0, 0, 0, 0)
+        self.tagButton = QPushButton("Tag")
+        self.tagButton.clicked.connect(self.get_clicked_radio_buttons)
+        self.tag_button_layout.addWidget(self.tagButton)
+
+        self.tagsVlayout = QVBoxLayout()
+        self.tagsVlayout.addLayout(self.annotationLayout)
+        self.tagsVlayout.addLayout(self.tag_button_layout)
+
+        self.tab1.setLayout(self.tagsVlayout)
+        self.tabs.addTab(self.tab1, "Player")
+        self.tabs.addTab(self.tab2, "Robot")
 
         self.gantt = gantShow()
         gantChart = self.gantt
@@ -709,7 +753,7 @@ class VideoPlayer(QWidget):
         layout = QVBoxLayout()
         layout.addWidget(self.videoWidget)
         layout.addLayout(self.controlLayout)
-        layout.addLayout(self.annotationLayout)
+        layout.addWidget(self.tabs)
         layout.addWidget(self.gantt)
 
         self.setLayout(layout)
@@ -718,6 +762,14 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.stateChanged.connect(self.mediaStateChanged)
         self.mediaPlayer.positionChanged.connect(self.positionChanged)
         self.mediaPlayer.durationChanged.connect(self.durationChanged)
+
+    #Print out the ID & text of the checked radio button
+    def get_clicked_radio_buttons(self):
+        for b in self.act_opts:
+            if b.isChecked():
+                print(self.act_button_group.checkedId())
+                print(self.act_button_group.checkedButton().text())
+
 
     def openFile(self):
         global imageBuffer,framerate
@@ -796,12 +848,17 @@ class VideoPlayer(QWidget):
             gantChart.draw()
 
     def parseJson(self):
-        with open("labels.json") as json_file:
+        with open("config.json") as json_file:
                 json_data = json.load(json_file)
                 json_label = []
                 for i in json_data['labels'] :
                     json_label.append(i)
         return json_label
+
+    def parseLabelConfig(self):
+        with open("config.json") as json_file:
+                json_data = json.load(json_file)
+        return json_data
 
     def errorMessages(self,index):
         msgBox = QMessageBox()

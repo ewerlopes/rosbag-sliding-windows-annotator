@@ -1,0 +1,12 @@
+{
+    "Player": {
+        "basic_labels":[
+                        {"Activity": ["Very low","Low","Medium","High","Very high"]},
+                        {"Expectation": ["Very low","Low","Medium","High","Very high"]},
+                        {"Control": ["Very low","Low","Medium","High","Very high"]}
+                       ],
+          
+        "high_labels":[]
+    },
+    "Robot": {}
+}	
