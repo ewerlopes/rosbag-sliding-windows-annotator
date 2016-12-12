@@ -622,17 +622,86 @@ class VideoPlayer(QWidget):
         self.playButton.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
         self.playButton.clicked.connect(self.play)
 
+        self.nexstDWindowButton = QPushButton()
+        self.nexstDWindowButton.setEnabled(False)
+        self.nexstDWindowButton.setIcon(self.style().standardIcon(QStyle.SP_MediaSkipForward))
+
+        self.previousDWindowButton = QPushButton()
+        self.previousDWindowButton.setEnabled(False)
+        self.previousDWindowButton.setIcon(self.style().standardIcon(QStyle.SP_MediaSkipBackward))
+
         self.positionSlider = QSlider(Qt.Horizontal)
         self.positionSlider.setRange(0, 0)
         self.positionSlider.sliderMoved.connect(self.setPosition)
+
+        # Create a label widget with our text
+        self.label = QLabel('Hello, world!')
 
         self.controlLayout = QHBoxLayout()
         self.controlLayout.setContentsMargins(0, 0, 0, 0)
         self.controlLayout.addWidget(self.openButton)
         self.controlLayout.addWidget(self.importCsv)
+        self.controlLayout.addWidget(self.previousDWindowButton)
         self.controlLayout.addWidget(self.playButton)
+        self.controlLayout.addWidget(self.nexstDWindowButton)
         self.controlLayout.addWidget(self.positionSlider)
         self.controlEnabled = False
+
+        self.annotationLayout = QHBoxLayout()
+        self.annotationLayout.setContentsMargins(0, 0, 0, 0)
+
+
+        self.act_group_box = QGroupBox(title="Activity")
+        self.exp_group_box = QGroupBox(title="Expectation")
+        self.ctrl_group_box = QGroupBox(title="Control")
+        self.act_group_box.setFlat(True)
+        self.exp_group_box.setFlat(True)
+        self.ctrl_group_box.setFlat(True)
+
+        styleSheet = " \
+                QGroupBox {\
+                    border: 1px solid gray;\
+                    border-radius: 9px;\
+                    margin-top: 0.5em;\
+                }\
+                QGroupBox::title {\
+                    subcontrol-origin: margin;\
+                    left: 10px;\
+                    padding: 0 3px 0 3px;\
+                }"
+
+        self.act_group_box.setStyleSheet(styleSheet)
+
+
+        # Create an array of radio buttons for the given tag option
+        self.act_opts = [QRadioButton("Very low"), QRadioButton("Low"), QRadioButton("Medium"),
+                         QRadioButton("High"), QRadioButton("Very High")]
+        self.exp_opts = [QRadioButton("Very low"), QRadioButton("Low"), QRadioButton("Medium"),
+                         QRadioButton("High"), QRadioButton("Very High")]
+        self.ctrl_opts = [QRadioButton("Very low"), QRadioButton("Low"), QRadioButton("Medium"),
+                         QRadioButton("High"), QRadioButton("Very High")]
+
+        # Set a radio button to be checked by default
+        self.act_opts[0].setChecked(True)
+
+        # Radio buttons usually are in a vertical layout
+        self.act_button_layout = QVBoxLayout()
+
+        # Create a button group for radio buttons
+        self.act_button_group = QButtonGroup()
+
+        for i in range(len(self.act_opts)):
+            # Add each radio button to the button layout
+            self.act_button_layout.addWidget(self.act_opts[i])
+            # Add each radio button to the button group & give it an ID of i
+            self.act_button_group.addButton(self.act_opts[i], i)
+            # Connect each radio button to a method to run when it's clicked
+            #self.connect(act_opts[i], SIGNAL("clicked()"), self.radio_button_clicked)
+
+        # Set the layout of the group box to the button layout
+        self.act_button_layout.addStretch(1)
+        self.act_group_box.setLayout(self.act_button_layout)
+        self.annotationLayout.addWidget(self.act_group_box)
 
         self.gantt = gantShow()
         gantChart = self.gantt
@@ -640,6 +709,7 @@ class VideoPlayer(QWidget):
         layout = QVBoxLayout()
         layout.addWidget(self.videoWidget)
         layout.addLayout(self.controlLayout)
+        layout.addLayout(self.annotationLayout)
         layout.addWidget(self.gantt)
 
         self.setLayout(layout)
@@ -957,7 +1027,7 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     player = VideoPlayer()
-    player.resize(640,720)
+    player.resize(640,920)
     player.show()
 
     sys.exit(app.exec_())
