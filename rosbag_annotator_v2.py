@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge, CvBridgeError
-import sys
+import sys, copy
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
@@ -611,13 +611,8 @@ class VideoPlayer(QWidget):
 
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.VideoSurface)
 
+        # the jason config data for setting labels
         self.label_configs = self.parseLabelConfig()
-        self.tab_names = dict([])
-
-        for t_name in self.label_configs.keys():
-            self.tab_names[t_name] = self.label_configs[t_name]
-
-        print self.tab_names
 
         self.videoWidget = VideoWidget()
         self.openButton = QPushButton("Open...")
@@ -643,9 +638,18 @@ class VideoPlayer(QWidget):
         self.positionSlider.sliderMoved.connect(self.setPosition)
 
         # Create tabs
-        self.tabs = QTabWidget()
-        self.tab1 = QWidget()
-        self.tab2 = QWidget()
+        self.tab_container = QTabWidget()
+        self.tabs = dict([])
+        self.annotation_layouts = dict([])
+        for t_name in self.label_configs.keys():
+            self.tabs[t_name] = QWidget()
+            self.annotation_layouts[t_name] = QHBoxLayout()
+            self.annotation_layouts[t_name].setContentsMargins(0, 0, 0, 0)
+
+        #parse labels
+        self.tabs_labels = dict([])
+        for t_name in self.label_configs.keys():
+            self.tabs_labels[t_name] = self.label_configs[t_name]
 
         # Create a label widget with our text
         #self.label = QLabel('Hello, world!')
@@ -660,92 +664,79 @@ class VideoPlayer(QWidget):
         self.controlLayout.addWidget(self.positionSlider)
         self.controlEnabled = False
 
-        self.annotationLayout = QHBoxLayout()
-        self.annotationLayout.setContentsMargins(0, 0, 0, 0)
+
+        self.label_groupbox_style = " \
+                        QGroupBox {\
+                            border: 1px solid gray;\
+                            border-radius: 9px;\
+                            margin-top: 0.5em;\
+                        }\
+                        QGroupBox::title {\
+                            subcontrol-origin: margin;\
+                            left: 10px;\
+                            padding: 0 3px 0 3px;\
+                        }"
+
+        self.label_group_boxes = dict([])
+        self.label_button_groups = dict([])
+        self.label_options = dict([])
+        self.label_layouts = dict([])
+
+        for t_name in self.tabs_labels.keys():
+            options_buttons = []
+            button_group_boxes = dict([])
+            buttons_by_labels = dict([])
+            button_layouts = dict([])
+            button_groups = dict([])
+            for label in self.tabs_labels[t_name].keys():
+                button_group_boxes[label] = QGroupBox(title=label)
+                button_group_boxes[label].setFlat(True)
+                button_group_boxes[label].setStyleSheet(self.label_groupbox_style)
+                for opt in self.tabs_labels[t_name][label]:
+                    options_buttons.append(QRadioButton(opt))
+                options_buttons[0].setChecked(True) # set a default
+                buttons_by_labels[label] = options_buttons
+                options_buttons = []
+                button_layouts[label] = QVBoxLayout() # Radio buttons usually are in a vertical layout
+                button_groups[label] = QButtonGroup() # Create a button group for radio buttons
+            self.label_options[t_name] = buttons_by_labels
+            self.label_layouts[t_name] = button_layouts
+            self.label_button_groups[t_name] = button_groups
+            self.label_group_boxes[t_name] = button_group_boxes
+
+        for t_name in self.label_options.keys():
+            for label in self.label_layouts[t_name].keys():
+                #print len(self.label_options[t_name][label]), label
+                for i in range(len(self.label_options[t_name][label])):
+                    # Add each radio button to the button layout
+                    self.label_layouts[t_name][label].addWidget(self.label_options[t_name][label][i])
+                    # Add each radio button to the button group & give it an ID of i
+                    self.label_button_groups[t_name][label].addButton(self.label_options[t_name][label][i], i)
 
 
-        self.act_group_box = QGroupBox(title="Activity")
-        self.exp_group_box = QGroupBox(title="Expectation")
-        self.ctrl_group_box = QGroupBox(title="Control")
-        self.act_group_box.setFlat(True)
-        self.exp_group_box.setFlat(True)
-        self.ctrl_group_box.setFlat(True)
-
-        styleSheet = " \
-                QGroupBox {\
-                    border: 1px solid gray;\
-                    border-radius: 9px;\
-                    margin-top: 0.5em;\
-                }\
-                QGroupBox::title {\
-                    subcontrol-origin: margin;\
-                    left: 10px;\
-                    padding: 0 3px 0 3px;\
-                }"
-
-        self.act_group_box.setStyleSheet(styleSheet)
-        self.exp_group_box.setStyleSheet(styleSheet)
-        self.ctrl_group_box.setStyleSheet(styleSheet)
+        for t_name in self.label_options.keys():
+            for label in self.label_layouts[t_name]:
+                # Set the layout of the group box to the button layout
+                self.label_group_boxes[t_name][label].setLayout(self.label_layouts[t_name][label])
+                self.annotation_layouts[t_name].addWidget(self.label_group_boxes[t_name][label])
 
 
-        # Create an array of radio buttons for the given tag option
-        self.act_opts = [QRadioButton("Very low"), QRadioButton("Low"), QRadioButton("Medium"),
-                         QRadioButton("High"), QRadioButton("Very High")]
-        self.exp_opts = [QRadioButton("Very low"), QRadioButton("Low"), QRadioButton("Medium"),
-                         QRadioButton("High"), QRadioButton("Very High")]
-        self.ctrl_opts = [QRadioButton("Very low"), QRadioButton("Low"), QRadioButton("Medium"),
-                         QRadioButton("High"), QRadioButton("Very High")]
+        self.tag_buttons = dict([])
+        self.tag_buttons_layout = dict([])
+        self.tag_buttons_vlayouts = dict([])
+        for t in self.tabs_labels.keys():
+            self.tag_buttons_layout[t] = QHBoxLayout()
+            self.tag_buttons_layout[t].setContentsMargins(0, 0, 0, 0)
+            self.tag_buttons[t] = QPushButton("Tag")
+            self.tag_buttons[t].clicked.connect(self.get_clicked_radio_buttons)
+            self.tag_buttons_layout[t].addWidget(self.tag_buttons[t])
 
-        # Set a radio button to be checked by default
-        self.act_opts[0].setChecked(True)
-        self.exp_opts[0].setChecked(True)
-        self.ctrl_opts[0].setChecked(True)
+            self.tag_buttons_vlayouts[t] = QVBoxLayout()
+            self.tag_buttons_vlayouts[t].addLayout(self.annotation_layouts[t])
+            self.tag_buttons_vlayouts[t].addLayout(self.tag_buttons_layout[t])
 
-        # Radio buttons usually are in a vertical layout
-        self.act_button_layout = QVBoxLayout()
-        self.exp_button_layout = QVBoxLayout()
-        self.ctrl_button_layout = QVBoxLayout()
-
-        # Create a button group for radio buttons
-        self.act_button_group = QButtonGroup()
-        self.exp_button_group = QButtonGroup()
-        self.ctrl_button_group = QButtonGroup()
-
-        for i in range(len(self.act_opts)):
-            # Add each radio button to the button layout
-            self.act_button_layout.addWidget(self.act_opts[i])
-            self.exp_button_layout.addWidget(self.exp_opts[i])
-            self.ctrl_button_layout.addWidget(self.ctrl_opts[i])
-
-            # Add each radio button to the button group & give it an ID of i
-            self.act_button_group.addButton(self.act_opts[i], i)
-            self.exp_button_group.addButton(self.exp_opts[i], i)
-            self.ctrl_button_group.addButton(self.ctrl_opts[i], i)
-
-        # Set the layout of the group box to the button layout
-        self.act_button_layout.addStretch(1)
-        self.exp_button_layout.addStretch(1)
-        self.ctrl_button_layout.addStretch(1)
-        self.act_group_box.setLayout(self.act_button_layout)
-        self.exp_group_box.setLayout(self.exp_button_layout)
-        self.ctrl_group_box.setLayout(self.ctrl_button_layout)
-        self.annotationLayout.addWidget(self.act_group_box)
-        self.annotationLayout.addWidget(self.exp_group_box)
-        self.annotationLayout.addWidget(self.ctrl_group_box)
-
-        self.tag_button_layout = QHBoxLayout()
-        self.tag_button_layout.setContentsMargins(0, 0, 0, 0)
-        self.tagButton = QPushButton("Tag")
-        self.tagButton.clicked.connect(self.get_clicked_radio_buttons)
-        self.tag_button_layout.addWidget(self.tagButton)
-
-        self.tagsVlayout = QVBoxLayout()
-        self.tagsVlayout.addLayout(self.annotationLayout)
-        self.tagsVlayout.addLayout(self.tag_button_layout)
-
-        self.tab1.setLayout(self.tagsVlayout)
-        self.tabs.addTab(self.tab1, "Player")
-        self.tabs.addTab(self.tab2, "Robot")
+            self.tabs[t].setLayout(self.tag_buttons_vlayouts[t])
+            self.tab_container.addTab(self.tabs[t], t)
 
         self.gantt = gantShow()
         gantChart = self.gantt
@@ -753,7 +744,7 @@ class VideoPlayer(QWidget):
         layout = QVBoxLayout()
         layout.addWidget(self.videoWidget)
         layout.addLayout(self.controlLayout)
-        layout.addWidget(self.tabs)
+        layout.addWidget(self.tab_container)
         layout.addWidget(self.gantt)
 
         self.setLayout(layout)
@@ -765,11 +756,12 @@ class VideoPlayer(QWidget):
 
     #Print out the ID & text of the checked radio button
     def get_clicked_radio_buttons(self):
-        for b in self.act_opts:
-            if b.isChecked():
-                print(self.act_button_group.checkedId())
-                print(self.act_button_group.checkedButton().text())
-
+        for t_name in self.tabs_labels.keys():
+            for label in self.label_options[t_name].keys():
+                for i in range(len(self.label_options[t_name][label])):
+                    if self.label_options[t_name][label][i].isChecked():
+                        print(self.label_button_groups[t_name][label].checkedId())
+                        print(self.label_button_groups[t_name][label].checkedButton().text())
 
     def openFile(self):
         global imageBuffer,framerate
