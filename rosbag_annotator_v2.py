@@ -570,6 +570,7 @@ class VideoPlayer(QWidget):
         self.topics_combo_label = QLabel('Image Topics:')
         self.windows_combo_label = QLabel('Window:')
         self.logOutput_label = QLabel("Log area:")
+        self.duration_label = QLabel("--:--")
 
         #Creat spinner box (windows size)
         self.windowSize_spinBox = QSpinBox()
@@ -640,6 +641,7 @@ class VideoPlayer(QWidget):
         self.control_button_layout1.addWidget(self.windows_combo_label)
         self.control_button_layout1.addWidget(self.windows_combo_box)
         self.control_button_layout1.addWidget(self.positionSlider)
+        self.control_button_layout1.addWidget(self.duration_label)
         self.control_button_layout2.addWidget(self.topics_combo_label)
         self.control_button_layout2.addWidget(self.topics_combo_box)
         self.control_button_layout2.addWidget(self.winsize_spinbox_label)
@@ -740,6 +742,7 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.stateChanged.connect(self.mediaStateChanged)
         self.mediaPlayer.positionChanged.connect(self.positionChanged)
         self.mediaPlayer.durationChanged.connect(self.durationChanged)
+        self.mediaPlayer.setNotifyInterval(1)
 
     #Print out the ID & text of the checked radio button
     def get_clicked_radio_buttons(self):
@@ -755,8 +758,10 @@ class VideoPlayer(QWidget):
         self.wsize_value = self.windowSize_spinBox.value()
         logger.info("Windows size set to:" + str(self.windowSize_spinBox.value()))
 
-    def windowsComboxChanged(self):
-        pass #TODO: call new partition
+    def windowsComboxChanged(self,i):
+        if self.windows_combo_box.currentText() != '':
+            millis = self.windows_begin_time[int(self.windows_combo_box.currentText())]*1000
+            self.setPosition(millis)
 
     #Listens to the change in the overlap dropdown list
     def overlapComboxChanged(self, i):
@@ -769,6 +774,7 @@ class VideoPlayer(QWidget):
         logger.info("Image topic defaulted to: " + self.current_image_topic)
 
     def reload(self):
+        self.windows_combo_box.clear()
         self.loadImageTopic(self.topics_combo_box.currentText())
 
     def openFile(self):
@@ -800,7 +806,10 @@ class VideoPlayer(QWidget):
                 self.errorMessages(6)
 
     def process_windows(self):
-        self.win_phase = (self.wsize_value*self.w_overlap_value)/100.0       ##Determined by cross-multiplication
+        if self.w_overlap_value:
+            self.win_phase = (self.wsize_value*self.w_overlap_value)/100.0       ##Determined by cross-multiplication
+        else:
+            self.win_phase = self.wsize_value           #TODO: is there a better way to have 0 overlap?ssss
         counter = 0.0
         self.windows_begin_time = []
         self.windows_end_time = []
@@ -814,6 +823,7 @@ class VideoPlayer(QWidget):
 
         if len(self.windows_begin_time) != len(self.windows_end_time): self.errorMessages(7)
         else: self.number_of_windows = len(self.windows_begin_time)
+        self.windows_combo_box.clear()
         for w in range(self.number_of_windows):
             self.windows_combo_box.addItem(str(w))
 
@@ -954,6 +964,15 @@ class VideoPlayer(QWidget):
             self.playButton.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
 
     def positionChanged(self, position):
+        self.duration_label.setText(str((int)((position / 1000) / 60)).zfill(2) + ":" + str((int)(position / 1000) % 60).zfill(2))
+        if float((position / 1000) % 60) >= self.windows_end_time[int(self.windows_combo_box.currentText())]:
+            logger.warn("BegW: " + str(self.windows_begin_time[int(self.windows_combo_box.currentText())]))
+            logger.warn("EndW: " + str(self.windows_end_time[int(self.windows_combo_box.currentText())]))
+            logger.warn("CurEnd:" + str(float((position / 1000) % 60)))
+            logger.warn(40*'%')
+            millis = self.windows_begin_time[int(self.windows_combo_box.currentText())] * 1000
+            self.setPosition(millis)
+        logger.warn("Cur:" + str(float((position / 1000) % 60)))
         self.positionSlider.setValue(position)
 
     def keyPressEvent(self,event):
