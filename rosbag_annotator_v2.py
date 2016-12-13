@@ -8,7 +8,6 @@ The following is a translation into PyQt5 from the C++ example found in
 C:\QtEnterprise\5.1.1\msvc2010\examples\multimediawidgets\customvideosurface\customvideowidget."""
 
 import csv
-import yaml
 import cv2
 import os
 import rosbag
@@ -32,7 +31,6 @@ from PyQt5.QtCore import *
 from PyQt5.QtMultimedia import *
 from PyQt5.QtMultimediaWidgets import *
 import warnings
-import numpy as np
 from matplotlib.widgets import Cursor
 from numpy import arange, sin, pi
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -40,6 +38,7 @@ from matplotlib.figure import Figure
 import matplotlib.transforms as transforms
 from matplotlib.collections import LineCollection
 from matplotlib.colors import ListedColormap, BoundaryNorm
+from annotator_utils import *
 
 start_point = False
 end_point = False
@@ -47,93 +46,6 @@ boxInitialized = False
 annotationColors = ['#00FF00', '#FF00FF','#FFFF00','#00FFFF','#FFA500']
 gantEnabled = False
 frameCounter = 0
-
-def buffer_data(bag, input_topic, compressed):
-    image_buff = []
-    time_buff  = []
-    start_time = None
-    bridge     = CvBridge()
-
-    #Buffer the images, timestamps from the rosbag
-    for topic, msg, t in bag.read_messages(topics=[input_topic]):
-        if start_time is None:
-            start_time = t
-
-        #Get the image
-        if not compressed:
-            try:
-                cv_image = bridge.imgmsg_to_cv2(msg, "bgr8")
-            except CvBridgeError as e:
-                print e
-        else:
-            nparr = np.fromstring(msg.data, np.uint8)
-            cv_image = cv2.imdecode(nparr, 1) #### cv2.CV_LOAD_IMAGE_COLOR has as enum value 1.
-            ## TODO: fix the problem with the this enum value.
-
-        image_buff.append(cv_image)
-        time_buff.append(t.to_sec() - start_time.to_sec())
-
-    return image_buff,  time_buff
-
-#Returns a buffer with boxes
-def buffer_csv(csv_file):
-    box_buff   = []
-    metrics = []
-    box_buff_action = []
-
-    if csv_file is not None and os.path.exists(csv_file):
-        with open(csv_file, 'r') as file_obj:
-            csv_reader = csv.reader(file_obj, delimiter = '\t')
-            row_1 = next(csv_reader)
-            try:
-                index = [x.strip() for x in row_1].index('Rect_id')
-                if 'Class' not in row_1:
-                    for row in csv_reader:
-                        (rec_id,x, y, width, height) = map(int, row[index:index + 5])
-                        (meter_X,meter_Y,meter_Z,top,meter_h,distance) = map(float, row[(index+5)::])
-                        box_buff.append((rec_id,x, y, width, height))
-                        metrics.append((meter_X,meter_Y,meter_Z,top,meter_h,distance))
-                else:
-                    #index = [x.strip() for x in row_1].index('Rect_id')
-                    for row in csv_reader:
-                        (rec_id,x, y, width, height) = map(int, row[index:index + 5])
-                        #action = map(str,row[index+5])
-                        (meter_X,meter_Y,meter_Z,top,meter_h,distance) = map(float, row[(index+6)::])
-                        box_buff.append((rec_id,x, y, width, height))
-                        box_buff_action.append(str(row[index+5]))
-                        metrics.append((meter_X,meter_Y,meter_Z,top,meter_h,distance))
-            except:
-                return False,False,False
-            return box_buff,metrics,box_buff_action
-    else:
-        return False,False,False
-
-def get_bag_metadata(bag):
-    info_dict       = yaml.load(bag._get_yaml_info())
-    topics             = info_dict['topics']
-    topic            = topics[0]
-    duration       = info_dict['duration']
-    topic_type       = topic['type']
-    message_count = topic['messages']
-
-    #Messages for test
-    print "\nRosbag topics found: "
-    for top in topics:
-        print "\t- ", top["topic"], "\n\t\t-Type: ", top["type"],"\n\t\t-Fps: ", top["frequency"]
-
-    print 23 * '#'
-    print topic_type
-    #Checking if the topic is compressed
-    if 'CompressedImage' in topic_type:
-        compressed = True
-    else:
-        compressed = False
-
-    #Get framerate
-    framerate = message_count/duration
-
-    return message_count,duration,compressed, framerate
-
 
 class VideoWidgetSurface(QAbstractVideoSurface):
 
@@ -637,6 +549,19 @@ class VideoPlayer(QWidget):
         self.positionSlider.setRange(0, 0)
         self.positionSlider.sliderMoved.connect(self.setPosition)
 
+        ### BUTTONS FOR THE SECOND CONTROL BUTTON LAYOUT
+        # Create a label widget with our text
+        self.win_size_label = QLabel('Window size: ')
+        self.overlap_label = QLabel('Overlap:')
+
+        #Creat spinner box (windows size)
+        self.windowSize = QSpinBox()
+        self.windowSize.valueChanged.connect(self.windowSizeChanged)
+        self.overlap = QComboBox()
+        for s in range(0,101,5):
+            self.overlap.addItem(str(s)+'%')
+        self.overlap.currentIndexChanged.connect(self.overlapChanged)
+
         # Create tabs
         self.tab_container = QTabWidget()
         self.tabs = dict([])
@@ -651,17 +576,19 @@ class VideoPlayer(QWidget):
         for t_name in self.label_configs.keys():
             self.tabs_labels[t_name] = self.label_configs[t_name]
 
-        # Create a label widget with our text
-        #self.label = QLabel('Hello, world!')
-
-        self.controlLayout = QHBoxLayout()
-        self.controlLayout.setContentsMargins(0, 0, 0, 0)
-        self.controlLayout.addWidget(self.openButton)
-        self.controlLayout.addWidget(self.importCsv)
-        self.controlLayout.addWidget(self.previousDWindowButton)
-        self.controlLayout.addWidget(self.playButton)
-        self.controlLayout.addWidget(self.nexstDWindowButton)
-        self.controlLayout.addWidget(self.positionSlider)
+        self.control_button_layout1 = QHBoxLayout()
+        self.control_button_layout2 = QHBoxLayout()
+        self.control_button_layout1.setContentsMargins(0, 0, 0, 0)
+        self.control_button_layout1.addWidget(self.openButton)
+        self.control_button_layout1.addWidget(self.importCsv)
+        self.control_button_layout1.addWidget(self.previousDWindowButton)
+        self.control_button_layout1.addWidget(self.playButton)
+        self.control_button_layout1.addWidget(self.nexstDWindowButton)
+        self.control_button_layout1.addWidget(self.positionSlider)
+        self.control_button_layout2.addWidget(self.win_size_label)
+        self.control_button_layout2.addWidget(self.windowSize)
+        self.control_button_layout2.addWidget(self.overlap_label)
+        self.control_button_layout2.addWidget(self.overlap)
         self.controlEnabled = False
 
 
@@ -743,7 +670,8 @@ class VideoPlayer(QWidget):
 
         layout = QVBoxLayout()
         layout.addWidget(self.videoWidget)
-        layout.addLayout(self.controlLayout)
+        layout.addLayout(self.control_button_layout1)
+        layout.addLayout(self.control_button_layout2)
         layout.addWidget(self.tab_container)
         layout.addWidget(self.gantt)
 
@@ -762,6 +690,18 @@ class VideoPlayer(QWidget):
                     if self.label_options[t_name][label][i].isChecked():
                         print(self.label_button_groups[t_name][label].checkedId())
                         print(self.label_button_groups[t_name][label].checkedButton().text())
+
+    # processes the change in spinner windowsSize element
+    def windowSizeChanged(self):
+        print ("current windows value:" + str(self.windowSize.value()))
+
+    #Listens to the change in the overlap dropdown list
+    def overlapChanged(self, i):
+        print "Items in the list are :"
+
+        for count in range(self.overlap.count()):
+            print self.overlap.itemText(count)
+        print "Current index", i, "selection changed ", self.overlap.currentText()
 
     def openFile(self):
         global imageBuffer,framerate
