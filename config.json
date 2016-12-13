@@ -2,8 +2,9 @@
     "Player": {
                 "Activity": ["Very Low","Low","Medium","High","Very high"],
                 "Expectation": ["Very low","Low","Medium","High","Very high"],
-                "Control": ["Very low","Low","Medium","High","Very high"]
+                "Control": ["Very low","Low","Medium","High","Very high"],
+                "High_level": ["Dodging","Inactive","Blocking","Running"]
                },
                
-    "Robot": {"Activity": ["Very Low","Low","Medium","High","Very high"]}
+    "Robot": {}
 }	

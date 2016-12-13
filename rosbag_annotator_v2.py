@@ -6,7 +6,7 @@ using QtMultimedia's QAbstractVideoSurface.
 
 The following is a translation into PyQt5 from the C++ example found in
 C:\QtEnterprise\5.1.1\msvc2010\examples\multimediawidgets\customvideosurface\customvideowidget."""
-
+from __future__ import division
 import csv
 import cv2
 import os
@@ -358,7 +358,7 @@ class VideoWidget(QWidget):
                     boxIdPainter.end()
 
             #Annotate the box at remaining frames
-            while self.frameNumber < len(player.time_buff):
+            while self.frameNumber < len(player.time_buff_secs):
                 if box >= len(player.videobox[self.frameNumber].box_Id) or box is None:
                     break
                 player.videobox[self.frameNumber].changeClass(box,self.annotClass)
@@ -399,7 +399,7 @@ class VideoWidget(QWidget):
                     boxIdPainter.end()
 
         #Play the bound boxes from csv
-        elif len(player.videobox) > 0 and frameCounter < len(player.time_buff):
+        elif len(player.videobox) > 0 and frameCounter < len(player.time_buff_secs):
                 for i in range(len(player.videobox[frameCounter].box_Id)):
                     x,y,w,h = player.videobox[frameCounter].box_Param[i]
                     if not rectPainter.isActive():
@@ -514,7 +514,7 @@ class textBox(QWidget):
                 break
 
         if self.writeEnable:
-            while self.frameNumber < len(player.time_buff):
+            while self.frameNumber < len(player.time_buff_secs):
                 if old_value in player.videobox[self.frameNumber].box_Id:
                     player.videobox[self.frameNumber].box_Id[old_index] = self.box_Idx
                 self.frameNumber += 1
@@ -554,6 +554,11 @@ class VideoPlayer(QWidget):
         self.previousDWindowButton.setEnabled(False)
         self.previousDWindowButton.setIcon(self.style().standardIcon(QStyle.SP_MediaSkipBackward))
 
+        self.reloadButton = QPushButton()
+        self.reloadButton.setEnabled(False)
+        self.reloadButton.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
+        self.reloadButton.clicked.connect(self.reload)
+
         self.positionSlider = QSlider(Qt.Horizontal)
         self.positionSlider.setRange(0, 0)
         self.positionSlider.sliderMoved.connect(self.setPosition)
@@ -563,21 +568,26 @@ class VideoPlayer(QWidget):
         self.winsize_spinbox_label = QLabel('Window size: ')
         self.overlap_combo_label = QLabel('Overlap:')
         self.topics_combo_label = QLabel('Image Topics:')
+        self.windows_combo_label = QLabel('Window:')
         self.logOutput_label = QLabel("Log area:")
 
         #Creat spinner box (windows size)
         self.windowSize_spinBox = QSpinBox()
         self.windowSize_spinBox.valueChanged.connect(self.windowSizeChanged)
+        self.windowSize_spinBox.setValue(3)
 
         #Create overlap dropdown list
         self.overlap_combo_box = QComboBox()
         for s in range(0,101,5):
             self.overlap_combo_box.addItem(str(s) + '%')
         self.overlap_combo_box.currentIndexChanged.connect(self.overlapComboxChanged)
+        self.overlap_combo_box.setCurrentIndex(10)
 
         # Create overlap dropdown list
         self.topics_combo_box = QComboBox()
         self.topics_combo_box.currentIndexChanged.connect(self.topicsComboxChanged)
+        self.windows_combo_box = QComboBox()
+        self.windows_combo_box.currentIndexChanged.connect(self.windowsComboxChanged)
 
         # Create log area
 
@@ -623,9 +633,12 @@ class VideoPlayer(QWidget):
         self.control_button_layout1.setContentsMargins(0, 0, 0, 0)
         self.control_button_layout1.addWidget(self.openButton)
         self.control_button_layout1.addWidget(self.importCsv)
+        self.control_button_layout1.addWidget(self.reloadButton)
         self.control_button_layout1.addWidget(self.previousDWindowButton)
         self.control_button_layout1.addWidget(self.playButton)
         self.control_button_layout1.addWidget(self.nexstDWindowButton)
+        self.control_button_layout1.addWidget(self.windows_combo_label)
+        self.control_button_layout1.addWidget(self.windows_combo_box)
         self.control_button_layout1.addWidget(self.positionSlider)
         self.control_button_layout2.addWidget(self.topics_combo_label)
         self.control_button_layout2.addWidget(self.topics_combo_box)
@@ -739,19 +752,24 @@ class VideoPlayer(QWidget):
 
     # processes the change in spinner windowsSize element
     def windowSizeChanged(self):
-        print ("current windows value:" + str(self.windowSize_spinBox.value()))
+        self.wsize_value = self.windowSize_spinBox.value()
+        logger.info("Windows size set to:" + str(self.windowSize_spinBox.value()))
+
+    def windowsComboxChanged(self):
+        pass #TODO: call new partition
 
     #Listens to the change in the overlap dropdown list
     def overlapComboxChanged(self, i):
         self.w_overlap_value = int(self.overlap_combo_box.currentText()[:-1])
-        logger.info("$$$OVERLAP VALUE SET TO: " +
-                              self.overlap_combo_box.currentText()[:-1])
+        logger.info("Overlap value set to: "+ self.overlap_combo_box.currentText())
 
     # Listens to the change in the combobox dropdown list
     def topicsComboxChanged(self, i):
+        self.current_image_topic = self.topics_combo_box.currentText()
+        logger.info("Image topic defaulted to: " + self.current_image_topic)
+
+    def reload(self):
         self.loadImageTopic(self.topics_combo_box.currentText())
-        logger.info("\n$$$$$IMAGE TOPIC DEFAULTED TO: " +
-                              self.topics_combo_box.currentText())
 
     def openFile(self):
         global imageBuffer,framerate
@@ -777,11 +795,32 @@ class VideoPlayer(QWidget):
             logger.info("BAG TOTAL DURATION: " + str(self.duration))
             if len(self.compressedImageTopics):
                 self.topics_combo_box.addItems(self.compressedImageTopics)
+                self.reloadButton.setEnabled(True)
             else:
                 self.errorMessages(6)
 
+    def process_windows(self):
+        self.win_phase = (self.wsize_value*self.w_overlap_value)/100.0       ##Determined by cross-multiplication
+        counter = 0.0
+        self.windows_begin_time = []
+        self.windows_end_time = []
+        while (counter < self.time_buff_secs[-1] and counter+self.wsize_value < self.time_buff_secs[-1]):
+            self.windows_begin_time.append(counter)
+            self.windows_end_time.append(counter+self.wsize_value)
+            counter += self.win_phase
+        logger.info("B: " + str(self.windows_begin_time))
+        logger.info("E: " + str(self.windows_end_time))
+        logger.info("Size: " + str(len(self.windows_begin_time)))
+
+        if len(self.windows_begin_time) != len(self.windows_end_time): self.errorMessages(7)
+        else: self.number_of_windows = len(self.windows_begin_time)
+        for w in range(self.number_of_windows):
+            self.windows_combo_box.addItem(str(w))
+
     def loadImageTopic(self, topic_name):
-        (imageBuffer, self.time_buff) = self.buffer_data(self.bag, topic_name)
+        (imageBuffer, self.time_buff_secs) = self.buffer_data(self.bag, topic_name)
+        logger.warn(self.time_buff_secs)
+        self.process_windows()
         fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
         height, width, bytesPerComponent = imageBuffer[0].shape
         video_writer = cv2.VideoWriter("myvid.avi", fourcc, framerate, (width,height), cv2.IMREAD_COLOR)
@@ -798,7 +837,7 @@ class VideoPlayer(QWidget):
 
     def buffer_data(self, bag, input_topic, compressed=True):
         image_buff = []
-        time_buff = []
+        time_buff_secs = []
         start_time = None
         bridge = CvBridge()
 
@@ -806,7 +845,6 @@ class VideoPlayer(QWidget):
         for topic, msg, t in bag.read_messages(topics=[input_topic]):
             if start_time is None:
                 start_time = t
-                self.logOutput.append(str(start_time))
 
             # Get the image
             if not compressed:
@@ -820,9 +858,9 @@ class VideoPlayer(QWidget):
                 ## TODO: fix the problem with the this enum value.
 
             image_buff.append(cv_image)
-            time_buff.append(t.to_sec() - start_time.to_sec())
+            time_buff_secs.append(t.to_sec() - start_time.to_sec())
 
-        return image_buff, time_buff
+        return image_buff, time_buff_secs
 
     #Open CSV file
     def openCsv(self):
@@ -838,7 +876,7 @@ class VideoPlayer(QWidget):
             self.box_buffer = [list(elem) for elem in box_buff]
             self.metric_buffer = [list(key) for key in metrics_buff]
             #Initialize objects which are equal to frames
-            self.videobox = [boundBox(count) for count in range(len(self.time_buff))]
+            self.videobox = [boundBox(count) for count in range(len(self.time_buff_secs))]
 
             #Frame counter initialize
             counter = -1
@@ -847,16 +885,16 @@ class VideoPlayer(QWidget):
                 for idx,key in enumerate(self.box_buffer):
                     if key[0] == 0:
                         counter += 1
-                        self.videobox[counter].addBox(self.time_buff[counter],key,self.box_actionBuffer[idx])
+                        self.videobox[counter].addBox(self.time_buff_secs[counter], key, self.box_actionBuffer[idx])
                     else:
-                        self.videobox[counter].addBox(self.time_buff[counter],key,self.box_actionBuffer[idx])
+                        self.videobox[counter].addBox(self.time_buff_secs[counter], key, self.box_actionBuffer[idx])
             else:
                 for idx,key in enumerate(self.box_buffer):
                     if key[0] == 0:
                         counter += 1
-                        self.videobox[counter].addBox(self.time_buff[counter],key,'Clear')
+                        self.videobox[counter].addBox(self.time_buff_secs[counter], key, 'Clear')
                     else:
-                        self.videobox[counter].addBox(self.time_buff[counter],key,'Clear')
+                        self.videobox[counter].addBox(self.time_buff_secs[counter], key, 'Clear')
 
             #Parse json file
             try:
@@ -898,6 +936,8 @@ class VideoPlayer(QWidget):
             msgBox.setText("Box id already given")
         elif index == 6:
             msgBox.setText("Error: Bag file has no compressed image topics!")
+        elif index == 7:
+            msgBox.setText("Error: something went in the windows partition!")
         msgBox.resize(100,40)
         msgBox.exec_()
 
