@@ -1,6 +1,9 @@
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 import yaml, csv, os, cv2
+import sys
+from PyQt5 import QtCore
+import logging
 
 def buffer_data(bag, input_topic, compressed):
     image_buff = []
@@ -69,16 +72,18 @@ def get_bag_metadata(bag):
     duration       = info_dict['duration']
     topic_type       = topic['type']
     message_count = topic['messages']
+    compressedImageTopics = []
 
     #Messages for test
-    print "\nRosbag topics found: "
+    #print "\nRosbag topics found: "
     for top in topics:
-        print "\t- ", top["topic"], "\n\t\t-Type: ", top["type"],"\n\t\t-Fps: ", top["frequency"]
+        if top["type"].endswith("sensor_msgs/CompressedImage"):
+            compressedImageTopics.append(top["topic"])
+        #print "\t- ", top["topic"], "\n\t\t-Type: ", top["type"],"\n\t\t-Fps: ", top["frequency"]
 
-    print 23 * '#'
-    print topic_type
+
     #Checking if the topic is compressed
-    if 'CompressedImage' in topic_type:
+    if len(compressedImageTopics): #if there is something in the list, so there is compressed topics
         compressed = True
     else:
         compressed = False
@@ -86,4 +91,37 @@ def get_bag_metadata(bag):
     #Get framerate
     framerate = message_count/duration
 
-    return message_count,duration,compressed, framerate
+    return message_count, duration, topics, compressedImageTopics, compressed, framerate
+
+### classes from http://stackoverflow.com/questions/24469662/how-to-redirect-logger-output-into-pyqt-text-widget
+class QtHandler(logging.Handler):
+    def __init__(self):
+        logging.Handler.__init__(self)
+    def emit(self, record):
+        record = self.format(record)
+        if record: XStream.stdout().write('%s\n'%record)
+        # originally: XStream.stdout().write("{}\n".format(record))
+
+class XStream(QtCore.QObject):
+    _stdout = None
+    _stderr = None
+    messageWritten = QtCore.pyqtSignal(str)
+    def flush( self ):
+        pass
+    def fileno( self ):
+        return -1
+    def write( self, msg ):
+        if ( not self.signalsBlocked() ):
+            self.messageWritten.emit(unicode(msg))
+    @staticmethod
+    def stdout():
+        if ( not XStream._stdout ):
+            XStream._stdout = XStream()
+            sys.stdout = XStream._stdout
+        return XStream._stdout
+    @staticmethod
+    def stderr():
+        if ( not XStream._stderr ):
+            XStream._stderr = XStream()
+            sys.stderr = XStream._stderr
+        return XStream._stderr

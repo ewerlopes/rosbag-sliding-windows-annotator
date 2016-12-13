@@ -11,6 +11,7 @@ import csv
 import cv2
 import os
 import rosbag
+import logging
 import argparse
 import textwrap
 import rospy
@@ -45,7 +46,15 @@ end_point = False
 boxInitialized = False
 annotationColors = ['#00FF00', '#FF00FF','#FFFF00','#00FFFF','#FFA500']
 gantEnabled = False
-frameCounter = 0
+
+### logging setup #####
+logger = logging.getLogger(__name__)
+handler = QtHandler()
+format = '%(asctime)s -- %(levelname)s --> %(message)s'
+date_format = '%Y-%m-%d %H:%M:%S'
+handler.setFormatter(logging.Formatter(format,date_format))
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
 
 class VideoWidgetSurface(QAbstractVideoSurface):
 
@@ -550,17 +559,50 @@ class VideoPlayer(QWidget):
         self.positionSlider.sliderMoved.connect(self.setPosition)
 
         ### BUTTONS FOR THE SECOND CONTROL BUTTON LAYOUT
-        # Create a label widget with our text
-        self.win_size_label = QLabel('Window size: ')
-        self.overlap_label = QLabel('Overlap:')
+        # Create a label widget for buttons in the second layout
+        self.winsize_spinbox_label = QLabel('Window size: ')
+        self.overlap_combo_label = QLabel('Overlap:')
+        self.topics_combo_label = QLabel('Image Topics:')
+        self.logOutput_label = QLabel("Log area:")
 
         #Creat spinner box (windows size)
-        self.windowSize = QSpinBox()
-        self.windowSize.valueChanged.connect(self.windowSizeChanged)
-        self.overlap = QComboBox()
+        self.windowSize_spinBox = QSpinBox()
+        self.windowSize_spinBox.valueChanged.connect(self.windowSizeChanged)
+
+        #Create overlap dropdown list
+        self.overlap_combo_box = QComboBox()
         for s in range(0,101,5):
-            self.overlap.addItem(str(s)+'%')
-        self.overlap.currentIndexChanged.connect(self.overlapChanged)
+            self.overlap_combo_box.addItem(str(s) + '%')
+        self.overlap_combo_box.currentIndexChanged.connect(self.overlapComboxChanged)
+
+        # Create overlap dropdown list
+        self.topics_combo_box = QComboBox()
+        self.topics_combo_box.currentIndexChanged.connect(self.topicsComboxChanged)
+
+        # Create log area
+
+        self.logOutput = QTextEdit()
+        self.logOutput.setReadOnly(True)
+        self.logOutput.setLineWrapMode(QTextEdit.NoWrap)
+
+        self.log_font = self.logOutput.font()
+        self.log_font.setFamily("Courier")
+        self.log_font.setPointSize(10)
+
+        self.logOutput.moveCursor(QTextCursor.End)
+        self.logOutput.setCurrentFont(self.log_font)
+        self.logOutput.setTextColor(QColor("red"))
+
+        self.scroll_bar = self.logOutput.verticalScrollBar()
+        self.scroll_bar.setValue(self.scroll_bar.maximum())
+
+        XStream.stdout().messageWritten.connect(self.logOutput.append)
+        XStream.stderr().messageWritten.connect(self.logOutput.append)
+
+        ## USE THIS TO SAVE THE OUTPUT
+        # with open('log.txt', 'w') as yourFile:
+        #    yourFile.write(str(yourQTextEdit.toPlainText()))
+
 
         # Create tabs
         self.tab_container = QTabWidget()
@@ -585,10 +627,12 @@ class VideoPlayer(QWidget):
         self.control_button_layout1.addWidget(self.playButton)
         self.control_button_layout1.addWidget(self.nexstDWindowButton)
         self.control_button_layout1.addWidget(self.positionSlider)
-        self.control_button_layout2.addWidget(self.win_size_label)
-        self.control_button_layout2.addWidget(self.windowSize)
-        self.control_button_layout2.addWidget(self.overlap_label)
-        self.control_button_layout2.addWidget(self.overlap)
+        self.control_button_layout2.addWidget(self.topics_combo_label)
+        self.control_button_layout2.addWidget(self.topics_combo_box)
+        self.control_button_layout2.addWidget(self.winsize_spinbox_label)
+        self.control_button_layout2.addWidget(self.windowSize_spinBox)
+        self.control_button_layout2.addWidget(self.overlap_combo_label)
+        self.control_button_layout2.addWidget(self.overlap_combo_box)
         self.controlEnabled = False
 
 
@@ -665,15 +709,17 @@ class VideoPlayer(QWidget):
             self.tabs[t].setLayout(self.tag_buttons_vlayouts[t])
             self.tab_container.addTab(self.tabs[t], t)
 
-        self.gantt = gantShow()
-        gantChart = self.gantt
+        #self.gantt = gantShow()
+        #gantChart = self.gantt
 
         layout = QVBoxLayout()
         layout.addWidget(self.videoWidget)
         layout.addLayout(self.control_button_layout1)
         layout.addLayout(self.control_button_layout2)
         layout.addWidget(self.tab_container)
-        layout.addWidget(self.gantt)
+        layout.addWidget(self.logOutput_label)
+        layout.addWidget(self.logOutput)
+        #layout.addWidget(self.gantt)
 
         self.setLayout(layout)
 
@@ -693,15 +739,19 @@ class VideoPlayer(QWidget):
 
     # processes the change in spinner windowsSize element
     def windowSizeChanged(self):
-        print ("current windows value:" + str(self.windowSize.value()))
+        print ("current windows value:" + str(self.windowSize_spinBox.value()))
 
     #Listens to the change in the overlap dropdown list
-    def overlapChanged(self, i):
-        print "Items in the list are :"
+    def overlapComboxChanged(self, i):
+        self.w_overlap_value = int(self.overlap_combo_box.currentText()[:-1])
+        logger.info("$$$OVERLAP VALUE SET TO: " +
+                              self.overlap_combo_box.currentText()[:-1])
 
-        for count in range(self.overlap.count()):
-            print self.overlap.itemText(count)
-        print "Current index", i, "selection changed ", self.overlap.currentText()
+    # Listens to the change in the combobox dropdown list
+    def topicsComboxChanged(self, i):
+        self.loadImageTopic(self.topics_combo_box.currentText())
+        logger.info("\n$$$$$IMAGE TOPIC DEFAULTED TO: " +
+                              self.topics_combo_box.currentText())
 
     def openFile(self):
         global imageBuffer,framerate
@@ -711,28 +761,68 @@ class VideoPlayer(QWidget):
             pass
         else:
             try:
-                bag = rosbag.Bag(fileName)
+                self.bag = rosbag.Bag(fileName)
             except:
                 self.errorMessages(0)
 
             #Get bag metadata
-            (self.message_count,self.duration,compressed, framerate) = get_bag_metadata(bag)
+            (self.message_count,self.duration, self.topics,
+             self.compressedImageTopics,compressed, framerate) = get_bag_metadata(self.bag)
             #Buffer the rosbag, boxes, timestamps
-            (imageBuffer, self.time_buff) = buffer_data(bag, "/ext_usb_camera/image/compressed", compressed)
-            fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
-            height, width, bytesPerComponent = imageBuffer[0].shape
-            video_writer = cv2.VideoWriter("myvid.avi", fourcc, framerate, (width,height), cv2.IMREAD_COLOR)
 
-            if not video_writer.isOpened():
-                self.errorMessages(2)
+            logger.info("TOPICS FOUND:") #TODO: try catch the case where theres no topics. Potential fatal error.
+            for top in self.topics:
+                logger.info("\t- " + top["topic"] + "\n\t\t-Type: "+
+                                                   top["type"]+"\n\t\t-Fps: "+ str(top["frequency"]))
+            logger.info("BAG TOTAL DURATION: " + str(self.duration))
+            if len(self.compressedImageTopics):
+                self.topics_combo_box.addItems(self.compressedImageTopics)
             else:
-                print("Video initialized")
-                for frame in imageBuffer:
-                    video_writer.write(frame)
-                video_writer.release()
+                self.errorMessages(6)
 
-                self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile("/home/ewerlopes/developer/rosbag_annotator/myvid.avi")))
-                self.playButton.setEnabled(True)
+    def loadImageTopic(self, topic_name):
+        (imageBuffer, self.time_buff) = self.buffer_data(self.bag, topic_name)
+        fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
+        height, width, bytesPerComponent = imageBuffer[0].shape
+        video_writer = cv2.VideoWriter("myvid.avi", fourcc, framerate, (width,height), cv2.IMREAD_COLOR)
+
+        if not video_writer.isOpened():
+            self.errorMessages(2)
+        else:
+            for frame in imageBuffer:
+                video_writer.write(frame)
+            video_writer.release()
+
+            self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile("/home/ewerlopes/developer/rosbag_annotator/myvid.avi")))
+            self.playButton.setEnabled(True)
+
+    def buffer_data(self, bag, input_topic, compressed=True):
+        image_buff = []
+        time_buff = []
+        start_time = None
+        bridge = CvBridge()
+
+        # Buffer the images, timestamps from the rosbag
+        for topic, msg, t in bag.read_messages(topics=[input_topic]):
+            if start_time is None:
+                start_time = t
+                self.logOutput.append(str(start_time))
+
+            # Get the image
+            if not compressed:
+                try:
+                    cv_image = bridge.imgmsg_to_cv2(msg, "bgr8")
+                except CvBridgeError as e:
+                    print e
+            else:
+                nparr = np.fromstring(msg.data, np.uint8)
+                cv_image = cv2.imdecode(nparr, 1)  #### cv2.CV_LOAD_IMAGE_COLOR has as enum value 1.
+                ## TODO: fix the problem with the this enum value.
+
+            image_buff.append(cv_image)
+            time_buff.append(t.to_sec() - start_time.to_sec())
+
+        return image_buff, time_buff
 
     #Open CSV file
     def openCsv(self):
@@ -806,6 +896,8 @@ class VideoPlayer(QWidget):
             msgBox.setText("Not integer type")
         elif index == 5:
             msgBox.setText("Box id already given")
+        elif index == 6:
+            msgBox.setText("Error: Bag file has no compressed image topics!")
         msgBox.resize(100,40)
         msgBox.exec_()
 
