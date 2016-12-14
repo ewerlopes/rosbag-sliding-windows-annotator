@@ -349,6 +349,7 @@ class VideoPlayer(QWidget):
                             padding: 0 3px 0 3px;\
                         }"
 
+        self.ntagged_windows = [] # keeps track of the windows that were tagged by the user.
         self.label_group_boxes = dict([])
         self.label_button_groups = dict([])
         self.label_options = dict([])
@@ -437,12 +438,27 @@ class VideoPlayer(QWidget):
                     if self.label_options[t_name][label][i].isChecked():
                         #logger.debug(self.label_button_groups[t_name][label].checkedId())
                         tag_data[label] = self.label_options[t_name][label][i].text()
-
-            self.data[t_name]["tags"].append([tag_data[l]for l in self.data[t_name]["labels"]])
-            logger.debug(tag_data)
-            logger.debug(self.data[t_name]["labels"])
-            #self.csv_writers[t_name].writerows([tag_data])
-            #self.output_data_files[t_name].flush()
+            current_windows = int(self.windows_combo_box.currentText())
+            if current_windows in self.ntagged_windows:         # if an annotation for the windows already exists
+                msg = "An anottation was already given to this window of data for the '" \
+                      +str(t_name) + "' tab. Do you want to overwrite it?"
+                reply = QMessageBox.question(self, 'Confirm Overwrite',msg, QMessageBox.Yes, QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    #TODO: if the windows being tagged is out of index with the rest of the alread
+                    # tagged elements in the list, e.g. (0 is taggeg, 1 isn't and the user tries to tag 2)
+                    # create a fake position, in order to avoid the index error.
+                    self.data[t_name]["tags"][current_windows] = [tag_data[l] for l in self.data[t_name]["labels"]]
+                    logger.info("Annotation for windows " + str(current_windows) + " was overwriten successfuly!")
+                    # self.csv_writers[t_name].writerows([tag_data])
+                    # self.output_data_files[t_name].flush()
+                else:
+                    pass
+            else:
+                self.data[t_name]["tags"].append([tag_data[l]for l in self.data[t_name]["labels"]])
+                self.ntagged_windows.append(current_windows)
+                logger.debug("Annotation for windows " + str(current_windows) + "done!")
+                #self.csv_writers[t_name].writerows([tag_data])
+                #self.output_data_files[t_name].flush()
 
     # processes the change in spinner windowsSize element
     def windowSizeChanged(self):
@@ -509,15 +525,6 @@ class VideoPlayer(QWidget):
             else:
                 self.errorMessages(6)
 
-        self.loadOutputFiles()
-        self.output_data_files = {}
-        self.csv_writers = {}
-        for t_name in self.label_group_boxes.keys():
-            self.output_data_files[t_name] = open(t_name+".csv", 'wa')
-            self.csv_writers[t_name] = csv.DictWriter(self.output_data_files[t_name], self.data[t_name]["labels"])
-            self.csv_writers[t_name].writeheader()
-            logger.debug("CsVHeaders: "+ str(self.data[t_name]["labels"]))
-
     def process_windows(self):
         if self.w_overlap_value:
             self.win_phase = (self.wsize_value*self.w_overlap_value)/100.0       ##Determined by cross-multiplication
@@ -534,9 +541,19 @@ class VideoPlayer(QWidget):
         logger.info("Size: " + str(len(self.windows)))
 
         self.number_of_windows = len(self.windows)
+        self.ntagged_windows = []
         self.windows_combo_box.clear()
         for w in range(self.number_of_windows):
             self.windows_combo_box.addItem(str(w))
+
+        self.loadOutputFiles()
+        self.output_data_files = {}
+        self.csv_writers = {}
+        for t_name in self.label_group_boxes.keys():
+            self.output_data_files[t_name] = open(t_name + ".csv", 'wa')
+            self.csv_writers[t_name] = csv.DictWriter(self.output_data_files[t_name], self.data[t_name]["labels"])
+            self.csv_writers[t_name].writeheader()
+            logger.debug("CsVHeaders: " + str(self.data[t_name]["labels"]))
 
     def loadImageTopic(self, topic_name):
         (imageBuffer, self.time_buff_secs) = self.buffer_data(self.bag, topic_name)

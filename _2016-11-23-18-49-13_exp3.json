@@ -17,27 +17,27 @@
             ], 
             [
                 "Very low", 
-                "Inactive", 
+                "Dodging", 
                 "Very low", 
                 "Very Low"
             ], 
             [
                 "Very low", 
-                "Inactive", 
-                "Medium", 
+                "Dodging", 
+                "Very low", 
                 "Very Low"
             ], 
             [
-                "Very high", 
-                "Inactive", 
-                "Medium", 
+                "Very low", 
+                "Dodging", 
+                "Very low", 
                 "Very Low"
             ], 
             [
-                "Very high", 
-                "Inactive", 
-                "Medium", 
-                "Medium"
+                "Very low", 
+                "Dodging", 
+                "Very low", 
+                "Very Low"
             ]
         ], 
         "win_size": 3
