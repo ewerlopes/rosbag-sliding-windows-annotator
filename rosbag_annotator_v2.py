@@ -561,7 +561,7 @@ class VideoPlayer(QWidget):
 
         self.positionSlider = QSlider(Qt.Horizontal)
         self.positionSlider.setRange(0, 0)
-        #self.positionSlider.sliderMoved.connect(self.setPosition)
+        self.positionSlider.sliderPressed.connect(self.setPosition)
 
         ### BUTTONS FOR THE SECOND CONTROL BUTTON LAYOUT
         # Create a label widget for buttons in the second layout
@@ -711,18 +711,20 @@ class VideoPlayer(QWidget):
         self.tag_buttons_layout = dict([])
         self.tag_buttons_vlayouts = dict([])
         for t in self.tabs_labels.keys():
-            self.tag_buttons_layout[t] = QHBoxLayout()
-            self.tag_buttons_layout[t].setContentsMargins(0, 0, 0, 0)
-            self.tag_buttons[t] = QPushButton("Tag")
-            self.tag_buttons[t].clicked.connect(self.get_clicked_radio_buttons)
-            self.tag_buttons_layout[t].addWidget(self.tag_buttons[t])
+            if len(self.annotation_layouts[t]): #Load tab only if there are labels set to it on the conf.jason
+                self.tag_buttons_layout[t] = QHBoxLayout()
+                self.tag_buttons_layout[t].setContentsMargins(0, 0, 0, 0)
+                self.tag_buttons[t] = QPushButton("Tag")
+                self.tag_buttons[t].clicked.connect(self.get_clicked_radio_buttons)
+                self.tag_buttons[t].setEnabled(False)
+                self.tag_buttons_layout[t].addWidget(self.tag_buttons[t])
 
-            self.tag_buttons_vlayouts[t] = QVBoxLayout()
-            self.tag_buttons_vlayouts[t].addLayout(self.annotation_layouts[t])
-            self.tag_buttons_vlayouts[t].addLayout(self.tag_buttons_layout[t])
+                self.tag_buttons_vlayouts[t] = QVBoxLayout()
+                self.tag_buttons_vlayouts[t].addLayout(self.annotation_layouts[t])
+                self.tag_buttons_vlayouts[t].addLayout(self.tag_buttons_layout[t])
 
-            self.tabs[t].setLayout(self.tag_buttons_vlayouts[t])
-            self.tab_container.addTab(self.tabs[t], t)
+                self.tabs[t].setLayout(self.tag_buttons_vlayouts[t])
+                self.tab_container.addTab(self.tabs[t], t)
 
         #self.gantt = gantShow()
         #gantChart = self.gantt
@@ -843,6 +845,8 @@ class VideoPlayer(QWidget):
 
             self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile("/home/ewerlopes/developer/rosbag_annotator/myvid.avi")))
             self.playButton.setEnabled(True)
+            for b in self.tag_buttons.keys():
+                self.tag_buttons[b].setEnabled(True)
 
     def buffer_data(self, bag, input_topic, compressed=True):
         image_buff = []
@@ -931,6 +935,7 @@ class VideoPlayer(QWidget):
 
     def errorMessages(self,index):
         msgBox = QMessageBox()
+        msgBox.setIcon(QMessageBox.Critical)
         if index == 0:
             msgBox.setText("Error: Incorrect Bag File")
         elif index == 1:
@@ -947,6 +952,9 @@ class VideoPlayer(QWidget):
             msgBox.setText("Error: Bag file has no compressed image topics!")
         elif index == 7:
             msgBox.setText("Error: something went in the windows partition!")
+        elif index == 8:
+            msgBox.setText('Error: Manually moving the slider is not allowed in this '
+                           'version. Use the "Window" drop-down list!')
         msgBox.resize(100,40)
         msgBox.exec_()
 
@@ -991,26 +999,7 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.setPosition(position)
 
     def setPosition(self):
-        position = self.positionSlider.value()
-        position_in_Secs = float((position / 1000) % 60)
-        for i, w in enumerate(self.windows):
-            if (position_in_Secs > w[0]) and (position_in_Secs < w[1]):
-                self.windows_combo_box.setCurrentIndex(self.windows_combo_box.findText(str(i)))
-                break
-            elif (position_in_Secs >= w[0]) and (position_in_Secs < w[1]) and (i != 0):
-                self.windows_combo_box.setCurrentIndex(self.windows_combo_box.findText(str(i-1)))
-                break
-            elif (position_in_Secs >= w[0]) and (position_in_Secs < w[1]) and (i == 0):
-                self.windows_combo_box.setCurrentIndex(self.windows_combo_box.findText(str(i)))
-                break
-            elif (position_in_Secs > w[0]) and (position_in_Secs <= w[1] and (i != len(self.windows))):
-                self.windows_combo_box.setCurrentIndex(self.windows_combo_box.findText(str(i+1)))
-                break
-            elif (position_in_Secs > w[0]) and (position_in_Secs <= w[1] and (i == len(self.windows))):
-                self.windows_combo_box.setCurrentIndex(self.windows_combo_box.findText(str(i)))
-                break
-        logger.debug("Slider moved")
-        logger.debug("At: " + str(position))
+        self.errorMessages(8)
 
 
     #Writes the boxes to csv
