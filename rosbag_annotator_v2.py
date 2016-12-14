@@ -349,16 +349,20 @@ class VideoPlayer(QWidget):
         self.label_button_groups = dict([])
         self.label_options = dict([])
         self.label_layouts = dict([])
+        self.output_data = dict([])
+        self.csv_headers = dict([])
 
         for t_name in self.tabs_labels.keys():
             if len(self.tabs_labels[t_name]):
-                self.output_data[t_name] = {}
+                self.output_data[t_name] = []
+                self.csv_headers[t_name] = []
                 options_buttons = []
                 button_group_boxes = dict([])
                 buttons_by_labels = dict([])
                 button_layouts = dict([])
                 button_groups = dict([])
                 for label in self.tabs_labels[t_name].keys():
+                    self.csv_headers[t_name].append(label)
                     button_group_boxes[label] = QGroupBox(title=label)
                     button_group_boxes[label].setFlat(True)
                     button_group_boxes[label].setStyleSheet(self.label_groupbox_style)
@@ -416,7 +420,6 @@ class VideoPlayer(QWidget):
         layout.addWidget(self.tab_container)
         layout.addWidget(self.logOutput_label)
         layout.addWidget(self.logOutput)
-        #layout.addWidget(self.gantt)
 
         self.setLayout(layout)
 
@@ -428,13 +431,19 @@ class VideoPlayer(QWidget):
 
     #Print out the ID & text of the checked radio button
     def handleTag(self):
+
         for t_name in self.label_group_boxes.keys():
+            tag_data = {}
             for label in self.label_options[t_name].keys():
                 for i in range(len(self.label_options[t_name][label])):
                     if self.label_options[t_name][label][i].isChecked():
                         #logger.debug(self.label_button_groups[t_name][label].checkedId())
-                        self.output_data[t_name][label] = self.label_options[t_name][label][i].text()
-        logger.debug(self.output_data)
+                        tag_data[label] = self.label_options[t_name][label][i].text()
+
+            self.output_data[t_name].append(tag_data)
+            logger.debug(self.output_data[t_name])
+            self.csv_writers[t_name].writerows(self.output_data[t_name])
+            self.output_data_files[t_name].flush()
 
     # processes the change in spinner windowsSize element
     def windowSizeChanged(self):
@@ -442,10 +451,10 @@ class VideoPlayer(QWidget):
         logger.info("Windows size set to:" + str(self.windowSize_spinBox.value()))
 
     def windowsComboxChanged(self,i):
-        logger.debug("Here")
         if self.windows_combo_box.currentText() != '':
             millis = self.windows[int(self.windows_combo_box.currentText())][0]*1000
             self.updateSliderPosition(millis)
+        logger.debug("Changed to new window")
 
     #Listens to the change in the overlap dropdown list
     def overlapComboxChanged(self, i):
@@ -463,13 +472,21 @@ class VideoPlayer(QWidget):
 
     def openFile(self):
         global imageBuffer,framerate
-        fileName,_ = QFileDialog.getOpenFileName(self, "Open Bag", QDir.currentPath(),"*.bag")
+        self.bagfileName,_ = QFileDialog.getOpenFileName(self, "Open Bag", QDir.currentPath(),"*.bag")
 
-        if not fileName:
+        self.output_data_files = {}
+        self.csv_writers = {}
+        for t_name in self.label_group_boxes.keys():
+            self.output_data_files[t_name] = open(t_name+".csv", 'wa')
+            self.csv_writers[t_name] = csv.DictWriter(self.output_data_files[t_name], self.csv_headers[t_name])
+            self.csv_writers[t_name].writeheader()
+            logger.debug("CsVHeaders: "+ str(self.csv_headers[t_name]))
+
+        if not self.bagfileName:
             pass
         else:
             try:
-                self.bag = rosbag.Bag(fileName)
+                self.bag = rosbag.Bag(self.bagfileName)
             except:
                 self.errorMessages(0)
 
@@ -636,19 +653,11 @@ class VideoPlayer(QWidget):
     def setPosition(self):
         self.errorMessages(8)
 
-
-    #Writes the boxes to csv
-    def writeOutput(self):
-
-
-        data = {}
-
-        with open('data.txt', 'w') as outfile:
-            json.dump(data, outfile)
-
     def closeEvent(self,event):
-        #self.writeOutput(self.videobox)
-        pass
+        for t_name in self.label_group_boxes.keys():
+            with open(t_name+".json","w") as file:
+                json.dump(self.output_data[t_name],file)
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
