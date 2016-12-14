@@ -760,7 +760,7 @@ class VideoPlayer(QWidget):
 
     def windowsComboxChanged(self,i):
         if self.windows_combo_box.currentText() != '':
-            millis = self.windows_begin_time[int(self.windows_combo_box.currentText())]*1000
+            millis = self.windows[int(self.windows_combo_box.currentText())][0]*1000
             self.setPosition(millis)
 
     #Listens to the change in the overlap dropdown list
@@ -811,18 +811,16 @@ class VideoPlayer(QWidget):
         else:
             self.win_phase = self.wsize_value           #TODO: is there a better way to have 0 overlap?ssss
         counter = 0.0
-        self.windows_begin_time = []
-        self.windows_end_time = []
-        while (counter < self.time_buff_secs[-1] and counter+self.wsize_value < self.time_buff_secs[-1]):
-            self.windows_begin_time.append(counter)
-            self.windows_end_time.append(counter+self.wsize_value)
-            counter += self.win_phase
-        logger.info("B: " + str(self.windows_begin_time))
-        logger.info("E: " + str(self.windows_end_time))
-        logger.info("Size: " + str(len(self.windows_begin_time)))
 
-        if len(self.windows_begin_time) != len(self.windows_end_time): self.errorMessages(7)
-        else: self.number_of_windows = len(self.windows_begin_time)
+        self.windows = []
+        while (counter < self.time_buff_secs[-1] and counter+self.wsize_value < self.time_buff_secs[-1]):
+            self.windows.append((counter, counter+self.wsize_value))     #Tuple-0: Begining - Tuple-1:End
+            counter += self.win_phase
+        logger.info("B: " + str([self.windows[i][0] for i in range(len(self.windows))]))
+        logger.info("E: " + str([self.windows[i][1] for i in range(len(self.windows))]))
+        logger.info("Size: " + str(len(self.windows)))
+
+        self.number_of_windows = len(self.windows)
         self.windows_combo_box.clear()
         for w in range(self.number_of_windows):
             self.windows_combo_box.addItem(str(w))
@@ -965,12 +963,12 @@ class VideoPlayer(QWidget):
 
     def positionChanged(self, position):
         self.duration_label.setText(str((int)((position / 1000) / 60)).zfill(2) + ":" + str((int)(position / 1000) % 60).zfill(2))
-        if float((position / 1000) % 60) >= self.windows_end_time[int(self.windows_combo_box.currentText())]:
-            logger.warn("BegW: " + str(self.windows_begin_time[int(self.windows_combo_box.currentText())]))
-            logger.warn("EndW: " + str(self.windows_end_time[int(self.windows_combo_box.currentText())]))
+        if float((position / 1000) % 60) >= self.windows[int(self.windows_combo_box.currentText())][1]:
+            logger.warn("BegW: " + str(self.windows[int(self.windows_combo_box.currentText())][0]))
+            logger.warn("EndW: " + str(self.windows[int(self.windows_combo_box.currentText())][1]))
             logger.warn("CurEnd:" + str(float((position / 1000) % 60)))
             logger.warn(40*'%')
-            millis = self.windows_begin_time[int(self.windows_combo_box.currentText())] * 1000
+            millis = self.windows[int(self.windows_combo_box.currentText())][0] * 1000
             self.setPosition(millis)
         logger.warn("Cur:" + str(float((position / 1000) % 60)))
         self.positionSlider.setValue(position)
