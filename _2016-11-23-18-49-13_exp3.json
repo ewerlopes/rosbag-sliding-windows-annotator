@@ -1,0 +1,45 @@
+{
+    "Player": {
+        "image_topic": "/ext_usb_camera/image/compressed", 
+        "labels": [
+            "Control", 
+            "High_level", 
+            "Expectation", 
+            "Activity"
+        ], 
+        "overlap": 50, 
+        "tags": [
+            [
+                "Very low", 
+                "Dodging", 
+                "Very low", 
+                "Very Low"
+            ], 
+            [
+                "Very low", 
+                "Inactive", 
+                "Very low", 
+                "Very Low"
+            ], 
+            [
+                "Very low", 
+                "Inactive", 
+                "Medium", 
+                "Very Low"
+            ], 
+            [
+                "Very high", 
+                "Inactive", 
+                "Medium", 
+                "Very Low"
+            ], 
+            [
+                "Very high", 
+                "Inactive", 
+                "Medium", 
+                "Medium"
+            ]
+        ], 
+        "win_size": 3
+    }
+}

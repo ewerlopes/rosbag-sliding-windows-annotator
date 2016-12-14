@@ -215,7 +215,7 @@ class VideoPlayer(QWidget):
 
         # the jason config data for setting labels
         self.label_configs = self.parseConfig()
-        self.output_data = {}
+        self.data = {}
 
         self.videoWidget = VideoWidget()
         self.openButton = QPushButton("Open...")
@@ -333,6 +333,10 @@ class VideoPlayer(QWidget):
         self.controlEnabled = False
 
 
+        for t_name in self.tabs_labels.keys():
+            if len(self.tabs_labels[t_name]):
+                logger.debug(t_name)
+
         self.label_groupbox_style = " \
                         QGroupBox {\
                             border: 1px solid gray;\
@@ -349,20 +353,15 @@ class VideoPlayer(QWidget):
         self.label_button_groups = dict([])
         self.label_options = dict([])
         self.label_layouts = dict([])
-        self.output_data = dict([])
-        self.csv_headers = dict([])
 
         for t_name in self.tabs_labels.keys():
             if len(self.tabs_labels[t_name]):
-                self.output_data[t_name] = []
-                self.csv_headers[t_name] = []
                 options_buttons = []
                 button_group_boxes = dict([])
                 buttons_by_labels = dict([])
                 button_layouts = dict([])
                 button_groups = dict([])
                 for label in self.tabs_labels[t_name].keys():
-                    self.csv_headers[t_name].append(label)
                     button_group_boxes[label] = QGroupBox(title=label)
                     button_group_boxes[label].setFlat(True)
                     button_group_boxes[label].setStyleSheet(self.label_groupbox_style)
@@ -431,7 +430,6 @@ class VideoPlayer(QWidget):
 
     #Print out the ID & text of the checked radio button
     def handleTag(self):
-
         for t_name in self.label_group_boxes.keys():
             tag_data = {}
             for label in self.label_options[t_name].keys():
@@ -440,10 +438,11 @@ class VideoPlayer(QWidget):
                         #logger.debug(self.label_button_groups[t_name][label].checkedId())
                         tag_data[label] = self.label_options[t_name][label][i].text()
 
-            self.output_data[t_name].append(tag_data)
-            logger.debug(self.output_data[t_name])
-            self.csv_writers[t_name].writerows(self.output_data[t_name])
-            self.output_data_files[t_name].flush()
+            self.data[t_name]["tags"].append([tag_data[l]for l in self.data[t_name]["labels"]])
+            logger.debug(tag_data)
+            logger.debug(self.data[t_name]["labels"])
+            #self.csv_writers[t_name].writerows([tag_data])
+            #self.output_data_files[t_name].flush()
 
     # processes the change in spinner windowsSize element
     def windowSizeChanged(self):
@@ -466,6 +465,18 @@ class VideoPlayer(QWidget):
         self.current_image_topic = self.topics_combo_box.currentText()
         logger.info("Image topic defaulted to: " + self.current_image_topic)
 
+    def loadOutputFiles(self):
+        for t_name in self.label_group_boxes.keys():
+            t_details = {}
+            t_details["tags"] = []
+            t_details["labels"] = tuple([label for label in self.tabs_labels[t_name].keys()])
+            t_details["win_size"] = self.wsize_value
+            t_details["overlap"] = self.w_overlap_value
+            t_details["image_topic"] = self.current_image_topic
+            self.data[t_name] = t_details
+
+
+
     def reload(self):
         self.windows_combo_box.clear()
         self.loadImageTopic(self.topics_combo_box.currentText())
@@ -473,14 +484,6 @@ class VideoPlayer(QWidget):
     def openFile(self):
         global imageBuffer,framerate
         self.bagfileName,_ = QFileDialog.getOpenFileName(self, "Open Bag", QDir.currentPath(),"*.bag")
-
-        self.output_data_files = {}
-        self.csv_writers = {}
-        for t_name in self.label_group_boxes.keys():
-            self.output_data_files[t_name] = open(t_name+".csv", 'wa')
-            self.csv_writers[t_name] = csv.DictWriter(self.output_data_files[t_name], self.csv_headers[t_name])
-            self.csv_writers[t_name].writeheader()
-            logger.debug("CsVHeaders: "+ str(self.csv_headers[t_name]))
 
         if not self.bagfileName:
             pass
@@ -505,6 +508,15 @@ class VideoPlayer(QWidget):
                 self.reloadButton.setEnabled(True)
             else:
                 self.errorMessages(6)
+
+        self.loadOutputFiles()
+        self.output_data_files = {}
+        self.csv_writers = {}
+        for t_name in self.label_group_boxes.keys():
+            self.output_data_files[t_name] = open(t_name+".csv", 'wa')
+            self.csv_writers[t_name] = csv.DictWriter(self.output_data_files[t_name], self.data[t_name]["labels"])
+            self.csv_writers[t_name].writeheader()
+            logger.debug("CsVHeaders: "+ str(self.data[t_name]["labels"]))
 
     def process_windows(self):
         if self.w_overlap_value:
@@ -654,9 +666,8 @@ class VideoPlayer(QWidget):
         self.errorMessages(8)
 
     def closeEvent(self,event):
-        for t_name in self.label_group_boxes.keys():
-            with open(t_name+".json","w") as file:
-                json.dump(self.output_data[t_name],file)
+        with open(self.bagfileName.split("/")[-1][:-4]+".json","w") as file:
+            json.dump(self.data,file,indent=4, sort_keys=True)
 
 
 if __name__ == '__main__':
