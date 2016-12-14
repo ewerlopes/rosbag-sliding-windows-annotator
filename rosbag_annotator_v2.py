@@ -214,7 +214,8 @@ class VideoPlayer(QWidget):
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.VideoSurface)
 
         # the jason config data for setting labels
-        self.label_configs = self.parseLabelConfig()
+        self.label_configs = self.parseConfig()
+        self.output_data = {}
 
         self.videoWidget = VideoWidget()
         self.openButton = QPushButton("Open...")
@@ -350,26 +351,28 @@ class VideoPlayer(QWidget):
         self.label_layouts = dict([])
 
         for t_name in self.tabs_labels.keys():
-            options_buttons = []
-            button_group_boxes = dict([])
-            buttons_by_labels = dict([])
-            button_layouts = dict([])
-            button_groups = dict([])
-            for label in self.tabs_labels[t_name].keys():
-                button_group_boxes[label] = QGroupBox(title=label)
-                button_group_boxes[label].setFlat(True)
-                button_group_boxes[label].setStyleSheet(self.label_groupbox_style)
-                for opt in self.tabs_labels[t_name][label]:
-                    options_buttons.append(QRadioButton(opt))
-                options_buttons[0].setChecked(True) # set a default
-                buttons_by_labels[label] = options_buttons
+            if len(self.tabs_labels[t_name]):
+                self.output_data[t_name] = {}
                 options_buttons = []
-                button_layouts[label] = QVBoxLayout() # Radio buttons usually are in a vertical layout
-                button_groups[label] = QButtonGroup() # Create a button group for radio buttons
-            self.label_options[t_name] = buttons_by_labels
-            self.label_layouts[t_name] = button_layouts
-            self.label_button_groups[t_name] = button_groups
-            self.label_group_boxes[t_name] = button_group_boxes
+                button_group_boxes = dict([])
+                buttons_by_labels = dict([])
+                button_layouts = dict([])
+                button_groups = dict([])
+                for label in self.tabs_labels[t_name].keys():
+                    button_group_boxes[label] = QGroupBox(title=label)
+                    button_group_boxes[label].setFlat(True)
+                    button_group_boxes[label].setStyleSheet(self.label_groupbox_style)
+                    for opt in self.tabs_labels[t_name][label]:
+                        options_buttons.append(QRadioButton(opt))
+                    options_buttons[0].setChecked(True) # set a default
+                    buttons_by_labels[label] = options_buttons
+                    options_buttons = []
+                    button_layouts[label] = QVBoxLayout() # Radio buttons usually are in a vertical layout
+                    button_groups[label] = QButtonGroup() # Create a button group for radio buttons
+                self.label_options[t_name] = buttons_by_labels
+                self.label_layouts[t_name] = button_layouts
+                self.label_button_groups[t_name] = button_groups
+                self.label_group_boxes[t_name] = button_group_boxes
 
         for t_name in self.label_options.keys():
             for label in self.label_layouts[t_name].keys():
@@ -391,24 +394,20 @@ class VideoPlayer(QWidget):
         self.tag_buttons = dict([])
         self.tag_buttons_layout = dict([])
         self.tag_buttons_vlayouts = dict([])
-        for t in self.tabs_labels.keys():
-            if len(self.annotation_layouts[t]): #Load tab only if there are labels set to it on the conf.jason
-                self.tag_buttons_layout[t] = QHBoxLayout()
-                self.tag_buttons_layout[t].setContentsMargins(0, 0, 0, 0)
-                self.tag_buttons[t] = QPushButton("Tag")
-                self.tag_buttons[t].clicked.connect(self.get_clicked_radio_buttons)
-                self.tag_buttons[t].setEnabled(False)
-                self.tag_buttons_layout[t].addWidget(self.tag_buttons[t])
+        for t in self.label_group_boxes.keys():
+            self.tag_buttons_layout[t] = QHBoxLayout()
+            self.tag_buttons_layout[t].setContentsMargins(0, 0, 0, 0)
+            self.tag_buttons[t] = QPushButton("Tag")
+            self.tag_buttons[t].clicked.connect(self.handleTag)
+            self.tag_buttons[t].setEnabled(False)
+            self.tag_buttons_layout[t].addWidget(self.tag_buttons[t])
 
-                self.tag_buttons_vlayouts[t] = QVBoxLayout()
-                self.tag_buttons_vlayouts[t].addLayout(self.annotation_layouts[t])
-                self.tag_buttons_vlayouts[t].addLayout(self.tag_buttons_layout[t])
+            self.tag_buttons_vlayouts[t] = QVBoxLayout()
+            self.tag_buttons_vlayouts[t].addLayout(self.annotation_layouts[t])
+            self.tag_buttons_vlayouts[t].addLayout(self.tag_buttons_layout[t])
 
-                self.tabs[t].setLayout(self.tag_buttons_vlayouts[t])
-                self.tab_container.addTab(self.tabs[t], t)
-
-        #self.gantt = gantShow()
-        #gantChart = self.gantt
+            self.tabs[t].setLayout(self.tag_buttons_vlayouts[t])
+            self.tab_container.addTab(self.tabs[t], t)
 
         layout = QVBoxLayout()
         layout.addWidget(self.videoWidget)
@@ -428,13 +427,14 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.setNotifyInterval(1)
 
     #Print out the ID & text of the checked radio button
-    def get_clicked_radio_buttons(self):
-        for t_name in self.tabs_labels.keys():
+    def handleTag(self):
+        for t_name in self.label_group_boxes.keys():
             for label in self.label_options[t_name].keys():
                 for i in range(len(self.label_options[t_name][label])):
                     if self.label_options[t_name][label][i].isChecked():
-                        print(self.label_button_groups[t_name][label].checkedId())
-                        print(self.label_button_groups[t_name][label].checkedButton().text())
+                        #logger.debug(self.label_button_groups[t_name][label].checkedId())
+                        self.output_data[t_name][label] = self.label_options[t_name][label][i].text()
+        logger.debug(self.output_data)
 
     # processes the change in spinner windowsSize element
     def windowSizeChanged(self):
@@ -558,58 +558,12 @@ class VideoPlayer(QWidget):
 
     #Open CSV file
     def openCsv(self):
-        global classLabels,gantEnabled
-        self.box_buffer =[]
+        fileName, _ = QFileDialog.getOpenFileName(self, "Open Csv ", QDir.currentPath(), "*.csv")
+        box_buff, metrics_buff, box_action = buffer_csv(fileName)
 
-        fileName,_ =  QFileDialog.getOpenFileName(self, "Open Csv ", QDir.currentPath(),"*.csv")
-        box_buff,metrics_buff,box_action = buffer_csv(fileName)
 
-        if not (box_buff or metrics_buff):
-            self.errorMessages(1)
-        else:
-            self.box_buffer = [list(elem) for elem in box_buff]
-            self.metric_buffer = [list(key) for key in metrics_buff]
-            #Initialize objects which are equal to frames
-            self.videobox = [boundBox(count) for count in range(len(self.time_buff_secs))]
 
-            #Frame counter initialize
-            counter = -1
-            if len(box_action)>0:
-                self.box_actionBuffer = [key for key in box_action]
-                for idx,key in enumerate(self.box_buffer):
-                    if key[0] == 0:
-                        counter += 1
-                        self.videobox[counter].addBox(self.time_buff_secs[counter], key, self.box_actionBuffer[idx])
-                    else:
-                        self.videobox[counter].addBox(self.time_buff_secs[counter], key, self.box_actionBuffer[idx])
-            else:
-                for idx,key in enumerate(self.box_buffer):
-                    if key[0] == 0:
-                        counter += 1
-                        self.videobox[counter].addBox(self.time_buff_secs[counter], key, 'Clear')
-                    else:
-                        self.videobox[counter].addBox(self.time_buff_secs[counter], key, 'Clear')
-
-            #Parse json file
-            try:
-                classLabels = self.parseJson()
-            except:
-                self.errorMessages(3)
-
-            gantEnabled = True
-            gantChart.axes.clear()
-            gantChart.drawChart()
-            gantChart.draw()
-
-    def parseJson(self):
-        with open("config.json") as json_file:
-                json_data = json.load(json_file)
-                json_label = []
-                for i in json_data['labels'] :
-                    json_label.append(i)
-        return json_label
-
-    def parseLabelConfig(self):
+    def parseConfig(self):
         with open("config.json") as json_file:
                 json_data = json.load(json_file)
         return json_data
@@ -684,52 +638,17 @@ class VideoPlayer(QWidget):
 
 
     #Writes the boxes to csv
-    def writeCSV(self,videobox):
-        list_insert_time = []
-        list_insert_box = []
-        list_insert_class = []
-        list_insert_param_1 = []
-        list_insert_param_2 = []
-        list_insert_param_3 = []
-        list_insert_param_4 = []
-        list_metr_param_1 = []
-        list_metr_param_2 = []
-        list_metr_param_3 = []
-        list_metr_param_4 = []
-        list_metr_param_5 = []
-        list_metr_param_6 = []
+    def writeOutput(self):
 
-        for i in self.videobox:
-            for j in i.timestamp:
-                list_insert_time.append(j)
-            for k in i.box_Id:
-                list_insert_box.append(k)
-            for l in i.box_Param:
-                list_insert_param_1.append(l[0])
-                list_insert_param_2.append(l[1])
-                list_insert_param_3.append(l[2])
-                list_insert_param_4.append(l[3])
-            for key in i.annotation:
-                list_insert_class.append(key)
 
-        if len(self.metric_buffer) > 0:
-            for metr in self.metric_buffer:
-                list_metr_param_1.append(metr[0])
-                list_metr_param_2.append(metr[1])
-                list_metr_param_3.append(metr[2])
-                list_metr_param_4.append(metr[3])
-                list_metr_param_5.append(metr[4])
-                list_metr_param_6.append(metr[5])
+        data = {}
 
-        with open('boxes_updated.csv', 'w') as file:
-            csv_writer = csv.writer(file, delimiter='\t')
-            headlines = ['Timestamp','Rect_id', 'Rect_x','Rect_y','Rect_W','Rect_H','Class','Meter_X','Meter_Y','Meter_Z','Top','Height' ,'Distance']
-            csv_writer.writerow(headlines)
-            rows = zip(list_insert_time,list_insert_box,list_insert_param_1,list_insert_param_2,list_insert_param_3,list_insert_param_4,list_insert_class,list_metr_param_1,list_metr_param_2,list_metr_param_3,list_metr_param_4,list_metr_param_5,list_metr_param_6)
-            csv_writer.writerows(rows)
+        with open('data.txt', 'w') as outfile:
+            json.dump(data, outfile)
 
     def closeEvent(self,event):
-        self.writeCSV(self.videobox)
+        #self.writeOutput(self.videobox)
+        pass
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
