@@ -561,7 +561,7 @@ class VideoPlayer(QWidget):
 
         self.positionSlider = QSlider(Qt.Horizontal)
         self.positionSlider.setRange(0, 0)
-        self.positionSlider.sliderMoved.connect(self.setPosition)
+        #self.positionSlider.sliderMoved.connect(self.setPosition)
 
         ### BUTTONS FOR THE SECOND CONTROL BUTTON LAYOUT
         # Create a label widget for buttons in the second layout
@@ -759,9 +759,10 @@ class VideoPlayer(QWidget):
         logger.info("Windows size set to:" + str(self.windowSize_spinBox.value()))
 
     def windowsComboxChanged(self,i):
+        logger.debug("Here")
         if self.windows_combo_box.currentText() != '':
             millis = self.windows[int(self.windows_combo_box.currentText())][0]*1000
-            self.setPosition(millis)
+            self.updateSliderPosition(millis)
 
     #Listens to the change in the overlap dropdown list
     def overlapComboxChanged(self, i):
@@ -964,13 +965,13 @@ class VideoPlayer(QWidget):
     def positionChanged(self, position):
         self.duration_label.setText(str((int)((position / 1000) / 60)).zfill(2) + ":" + str((int)(position / 1000) % 60).zfill(2))
         if float((position / 1000) % 60) >= self.windows[int(self.windows_combo_box.currentText())][1]:
-            logger.warn("BegW: " + str(self.windows[int(self.windows_combo_box.currentText())][0]))
-            logger.warn("EndW: " + str(self.windows[int(self.windows_combo_box.currentText())][1]))
-            logger.warn("CurEnd:" + str(float((position / 1000) % 60)))
-            logger.warn(40*'%')
+            logger.debug("BegW: " + str(self.windows[int(self.windows_combo_box.currentText())][0]))
+            logger.debug("EndW: " + str(self.windows[int(self.windows_combo_box.currentText())][1]))
+            logger.debug("CurEnd:" + str(float((position / 1000) % 60)))
+            logger.debug(40*'%')
             millis = self.windows[int(self.windows_combo_box.currentText())][0] * 1000
-            self.setPosition(millis)
-        logger.warn("Cur:" + str(float((position / 1000) % 60)))
+            self.updateSliderPosition(millis)
+        else: logger.debug("Cur:" + str(float((position / 1000) % 60)))
         self.positionSlider.setValue(position)
 
     def keyPressEvent(self,event):
@@ -984,11 +985,33 @@ class VideoPlayer(QWidget):
     def durationChanged(self, duration):
         self.positionSlider.setRange(0, duration)
 
-    #Allazei otan peiraksw ton slider!!
-    def setPosition(self, position):
+    def updateSliderPosition(self, position):
         global frameCounter
-        frameCounter = int(round(self.message_count * position/(self.duration * 1000)))
+        frameCounter = int(round(self.message_count * position / (self.duration * 1000)))
         self.mediaPlayer.setPosition(position)
+
+    def setPosition(self):
+        position = self.positionSlider.value()
+        position_in_Secs = float((position / 1000) % 60)
+        for i, w in enumerate(self.windows):
+            if (position_in_Secs > w[0]) and (position_in_Secs < w[1]):
+                self.windows_combo_box.setCurrentIndex(self.windows_combo_box.findText(str(i)))
+                break
+            elif (position_in_Secs >= w[0]) and (position_in_Secs < w[1]) and (i != 0):
+                self.windows_combo_box.setCurrentIndex(self.windows_combo_box.findText(str(i-1)))
+                break
+            elif (position_in_Secs >= w[0]) and (position_in_Secs < w[1]) and (i == 0):
+                self.windows_combo_box.setCurrentIndex(self.windows_combo_box.findText(str(i)))
+                break
+            elif (position_in_Secs > w[0]) and (position_in_Secs <= w[1] and (i != len(self.windows))):
+                self.windows_combo_box.setCurrentIndex(self.windows_combo_box.findText(str(i+1)))
+                break
+            elif (position_in_Secs > w[0]) and (position_in_Secs <= w[1] and (i == len(self.windows))):
+                self.windows_combo_box.setCurrentIndex(self.windows_combo_box.findText(str(i)))
+                break
+        logger.debug("Slider moved")
+        logger.debug("At: " + str(position))
+
 
     #Writes the boxes to csv
     def writeCSV(self,videobox):
