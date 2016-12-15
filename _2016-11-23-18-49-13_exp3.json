@@ -20,25 +20,7 @@
             [], 
             [], 
             [], 
-            [], 
-            [
-                "Very low", 
-                "Dodging", 
-                "Very low", 
-                "Very Low"
-            ], 
-            [
-                "Very low", 
-                "Dodging", 
-                "Very low", 
-                "Very Low"
-            ], 
-            [
-                "Very low", 
-                "Dodging", 
-                "Very low", 
-                "Very Low"
-            ]
+            []
         ], 
         "win_size": 3
     }

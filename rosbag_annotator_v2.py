@@ -210,7 +210,8 @@ class VideoPlayer(QWidget):
         super(VideoPlayer, self).__init__(parent)
         self.videobox = []
         self.metric_buffer = []
-
+        self.filename = ''
+        self.isUnsave = True
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.VideoSurface)
 
         # the jason config data for setting labels
@@ -242,6 +243,10 @@ class VideoPlayer(QWidget):
         self.reloadButton.setEnabled(False)
         self.reloadButton.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
         self.reloadButton.clicked.connect(self.reload)
+
+        self.saveButton = QPushButton("Save")
+        self.saveButton.setEnabled(False)
+        self.saveButton.clicked.connect(self.save)
 
         self.positionSlider = QSlider(Qt.Horizontal)
         self.positionSlider.setRange(0, 0)
@@ -315,9 +320,11 @@ class VideoPlayer(QWidget):
 
         self.control_button_layout1 = QHBoxLayout()
         self.control_button_layout2 = QHBoxLayout()
+        self.control_button_layout3 = QHBoxLayout()
         self.control_button_layout1.setContentsMargins(0, 0, 0, 0)
         self.control_button_layout1.addWidget(self.openButton)
-        self.control_button_layout1.addWidget(self.importCsv)
+        self.control_button_layout1.addWidget(self.saveButton)
+        #self.control_button_layout1.addWidget(self.importCsv)
         self.control_button_layout1.addWidget(self.reloadButton)
         self.control_button_layout1.addWidget(self.previousDWindowButton)
         self.control_button_layout1.addWidget(self.playButton)
@@ -401,6 +408,7 @@ class VideoPlayer(QWidget):
         self.tag_buttons_layout = dict([])
         self.tag_buttons_vlayouts = dict([])
         for t in self.label_group_boxes.keys():
+            #TODO: Remove multiple tag buttons in the different tabs. Keep one for all!!!
             self.tag_buttons_layout[t] = QHBoxLayout()
             self.tag_buttons_layout[t].setContentsMargins(0, 0, 0, 0)
             self.tag_buttons[t] = QPushButton("Tag")
@@ -420,6 +428,7 @@ class VideoPlayer(QWidget):
         layout.addLayout(self.control_button_layout1)
         layout.addLayout(self.control_button_layout2)
         layout.addWidget(self.tab_container)
+        layout.addLayout(self.control_button_layout3)
         layout.addWidget(self.logOutput_label)
         layout.addWidget(self.logOutput)
 
@@ -449,6 +458,8 @@ class VideoPlayer(QWidget):
                 if reply == QMessageBox.Yes:
                     self.data[t_name]["tags"][current_windows] = [tag_data[l] for l in self.data[t_name]["labels"]]
                     logger.info("Annotation for windows " + str(current_windows) + " was overwriten successfuly!")
+                    self.isUnsave = True
+                    self.setWindowTitle('*' + self.filename + '-' + self.windowTitle())
                     # self.csv_writers[t_name].writerows([tag_data])
                     # self.output_data_files[t_name].flush()
                 else:
@@ -456,6 +467,8 @@ class VideoPlayer(QWidget):
             else:
                 self.data[t_name]["tags"].append([tag_data[l]for l in self.data[t_name]["labels"]])
                 self.listOftaggedWindows.append(current_windows)
+                self.isUnsave = True
+                self.setWindowTitle('*'+self.filename + '-' + self.windowTitle())
                 logger.debug("Annotation for windows " + str(current_windows) + "done!")
                 #self.csv_writers[t_name].writerows([tag_data])
                 #self.output_data_files[t_name].flush()
@@ -510,32 +523,32 @@ class VideoPlayer(QWidget):
     def openFile(self):
         global imageBuffer,framerate
         self.bagfileName,_ = QFileDialog.getOpenFileName(self, "Open Bag", QDir.currentPath(),"*.bag")
-
-        if not self.bagfileName:
-            pass
-        else:
-            try:
-                self.bag = rosbag.Bag(self.bagfileName)
-            except:
-                self.errorMessages(0)
-
-            #Get bag metadata
-            (self.message_count,self.duration, self.topics,
-             self.compressedImageTopics,compressed, framerate) = get_bag_metadata(self.bag)
-            #Buffer the rosbag, boxes, timestamps
-
-            logger.info("TOPICS FOUND:") #TODO: try catch the case where theres no topics. Potential fatal error.
-            for top in self.topics:
-                logger.info("\t- " + top["topic"] + "\n\t\t-Type: "+
-                                                   top["type"]+"\n\t\t-Fps: "+ str(top["frequency"]))
-            logger.info("BAG TOTAL DURATION: " + str(self.duration))
-            if len(self.compressedImageTopics):
-                self.topics_combo_box.addItems(self.compressedImageTopics)
-                self.reloadButton.setEnabled(True)
+        if self.bagfileName != '':
+            if not self.bagfileName:
+                pass
             else:
-                self.errorMessages(6)
-        self.isBagLoaded = True
-        self.reload()
+                try:
+                    self.bag = rosbag.Bag(self.bagfileName)
+                except:
+                    self.errorMessages(0)
+
+                #Get bag metadata
+                (self.message_count,self.duration, self.topics,
+                 self.compressedImageTopics,compressed, framerate) = get_bag_metadata(self.bag)
+                #Buffer the rosbag, boxes, timestamps
+
+                logger.info("TOPICS FOUND:") #TODO: try catch the case where theres no topics. Potential fatal error.
+                for top in self.topics:
+                    logger.info("\t- " + top["topic"] + "\n\t\t-Type: "+
+                                                       top["type"]+"\n\t\t-Fps: "+ str(top["frequency"]))
+                logger.info("BAG TOTAL DURATION: " + str(self.duration))
+                if len(self.compressedImageTopics):
+                    self.topics_combo_box.addItems(self.compressedImageTopics)
+                    self.reloadButton.setEnabled(True)
+                else:
+                    self.errorMessages(6)
+            self.isBagLoaded = True
+            self.reload()
 
     def process_windows(self):
         if self.w_overlap_value:
@@ -586,6 +599,7 @@ class VideoPlayer(QWidget):
             self.playButton.setEnabled(True)
             self.previousDWindowButton.setEnabled(True)
             self.nexstDWindowButton.setEnabled(True)
+            self.saveButton.setEnabled(True)
             for b in self.tag_buttons.keys():
                 self.tag_buttons[b].setEnabled(True)
 
@@ -712,9 +726,24 @@ class VideoPlayer(QWidget):
     def setPosition(self):
         self.errorMessages(8)
 
+    def saveAs(self):
+        defaultdir = os.path.dirname(os.path.abspath(__file__))
+        defaultname = self.bagfileName.split("/")[-1][:-4] + ".json"
+        insertedName = QFileDialog.getSaveFileName(self, 'Save File', defaultdir+"/"+defaultname, filter='*.json')
+        if insertedName[0] != '':
+            self.filename = insertedName[0]
+            logger.debug(self.filename)
+            with open(self.filename, "w") as save_file:
+                json.dump(self.data, save_file, indent=4, sort_keys=True)
+            self.isUnsave = False
+            self.setWindowTitle(self.filename + '-' + self.windowTitle())
+
     def save(self):
-        with open(self.bagfileName.split("/")[-1][:-4] + ".json", "w") as file:
-            json.dump(self.data, file, indent=4, sort_keys=True)
+        if self.filename != '':
+            with open(self.filename, "w") as save_file:
+                json.dump(self.data, save_file, indent=4, sort_keys=True)
+        else:
+            self.saveAs()
 
     def closeEvent(self,event):
         if self.isBagLoaded:
