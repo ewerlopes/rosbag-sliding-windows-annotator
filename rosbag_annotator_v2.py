@@ -216,7 +216,7 @@ class VideoPlayer(QWidget):
         # the jason config data for setting labels
         self.label_configs = self.parseConfig()
         self.data = {}
-
+        self.isBagLoaded = False
         self.videoWidget = VideoWidget()
         self.openButton = QPushButton("Open...")
         self.importCsv = QPushButton("Import CSV...")
@@ -231,10 +231,12 @@ class VideoPlayer(QWidget):
         self.nexstDWindowButton = QPushButton()
         self.nexstDWindowButton.setEnabled(False)
         self.nexstDWindowButton.setIcon(self.style().standardIcon(QStyle.SP_MediaSkipForward))
+        self.nexstDWindowButton.clicked.connect(self.moveWindowForward)
 
         self.previousDWindowButton = QPushButton()
         self.previousDWindowButton.setEnabled(False)
         self.previousDWindowButton.setIcon(self.style().standardIcon(QStyle.SP_MediaSkipBackward))
+        self.previousDWindowButton.clicked.connect(self.moveWindowBackward)
 
         self.reloadButton = QPushButton()
         self.reloadButton.setEnabled(False)
@@ -349,7 +351,7 @@ class VideoPlayer(QWidget):
                             padding: 0 3px 0 3px;\
                         }"
 
-        self.ntagged_windows = [] # keeps track of the windows that were tagged by the user.
+        self.listOftaggedWindows = [] # keeps track of the windows that were tagged by the user.
         self.label_group_boxes = dict([])
         self.label_button_groups = dict([])
         self.label_options = dict([])
@@ -439,14 +441,12 @@ class VideoPlayer(QWidget):
                         #logger.debug(self.label_button_groups[t_name][label].checkedId())
                         tag_data[label] = self.label_options[t_name][label][i].text()
             current_windows = int(self.windows_combo_box.currentText())
-            if current_windows in self.ntagged_windows:         # if an annotation for the windows already exists
+
+            if current_windows in self.listOftaggedWindows:         # if an annotation for the windows already exists
                 msg = "An anottation was already given to this window of data for the '" \
                       +str(t_name) + "' tab. Do you want to overwrite it?"
                 reply = QMessageBox.question(self, 'Confirm Overwrite',msg, QMessageBox.Yes, QMessageBox.No)
                 if reply == QMessageBox.Yes:
-                    #TODO: if the windows being tagged is out of index with the rest of the alread
-                    # tagged elements in the list, e.g. (0 is taggeg, 1 isn't and the user tries to tag 2)
-                    # create a fake position, in order to avoid the index error.
                     self.data[t_name]["tags"][current_windows] = [tag_data[l] for l in self.data[t_name]["labels"]]
                     logger.info("Annotation for windows " + str(current_windows) + " was overwriten successfuly!")
                     # self.csv_writers[t_name].writerows([tag_data])
@@ -455,7 +455,7 @@ class VideoPlayer(QWidget):
                     pass
             else:
                 self.data[t_name]["tags"].append([tag_data[l]for l in self.data[t_name]["labels"]])
-                self.ntagged_windows.append(current_windows)
+                self.listOftaggedWindows.append(current_windows)
                 logger.debug("Annotation for windows " + str(current_windows) + "done!")
                 #self.csv_writers[t_name].writerows([tag_data])
                 #self.output_data_files[t_name].flush()
@@ -465,9 +465,19 @@ class VideoPlayer(QWidget):
         self.wsize_value = self.windowSize_spinBox.value()
         logger.info("Windows size set to:" + str(self.windowSize_spinBox.value()))
 
-    def windowsComboxChanged(self,i):
-        if self.windows_combo_box.currentText() != '':
-            millis = self.windows[int(self.windows_combo_box.currentText())][0]*1000
+    def windowsComboxChanged(self):
+        curr = self.windows_combo_box.currentText()
+        if curr != '':
+            curr = int(curr)
+            if self.isBagLoaded and curr == 0:
+                self.previousDWindowButton.setEnabled(False)
+            elif self.isBagLoaded and curr == (self.number_of_windows - 1):
+                self.nexstDWindowButton.setEnabled(False)
+            elif self.isBagLoaded:
+                self.previousDWindowButton.setEnabled(True)
+                self.nexstDWindowButton.setEnabled(True)
+
+            millis = self.windows[curr][0]*1000
             self.updateSliderPosition(millis)
         logger.debug("Changed to new window")
 
@@ -484,7 +494,7 @@ class VideoPlayer(QWidget):
     def loadOutputFiles(self):
         for t_name in self.label_group_boxes.keys():
             t_details = {}
-            t_details["tags"] = []
+            t_details["tags"] = [[] for n in range(self.number_of_windows)]
             t_details["labels"] = tuple([label for label in self.tabs_labels[t_name].keys()])
             t_details["win_size"] = self.wsize_value
             t_details["overlap"] = self.w_overlap_value
@@ -524,6 +534,8 @@ class VideoPlayer(QWidget):
                 self.reloadButton.setEnabled(True)
             else:
                 self.errorMessages(6)
+        self.isBagLoaded = True
+        self.reload()
 
     def process_windows(self):
         if self.w_overlap_value:
@@ -541,7 +553,7 @@ class VideoPlayer(QWidget):
         logger.info("Size: " + str(len(self.windows)))
 
         self.number_of_windows = len(self.windows)
-        self.ntagged_windows = []
+        self.listOftaggedWindows = []
         self.windows_combo_box.clear()
         for w in range(self.number_of_windows):
             self.windows_combo_box.addItem(str(w))
@@ -572,6 +584,8 @@ class VideoPlayer(QWidget):
 
             self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile("/home/ewerlopes/developer/rosbag_annotator/myvid.avi")))
             self.playButton.setEnabled(True)
+            self.previousDWindowButton.setEnabled(True)
+            self.nexstDWindowButton.setEnabled(True)
             for b in self.tag_buttons.keys():
                 self.tag_buttons[b].setEnabled(True)
 
@@ -645,6 +659,22 @@ class VideoPlayer(QWidget):
         else:
             self.mediaPlayer.play()
 
+    def moveWindowForward(self):
+        curr = self.windows_combo_box.currentText()
+        if curr != '':
+            curr = self.windows_combo_box.findText(curr)
+            if (curr+1) < self.number_of_windows:
+                self.windows_combo_box.setCurrentIndex(curr+1)
+                self.windowsComboxChanged()
+
+    def moveWindowBackward(self):
+        curr = self.windows_combo_box.currentText()
+        if curr != '':
+            curr = self.windows_combo_box.findText(curr)
+            if (curr-1) >= 0:
+                self.windows_combo_box.setCurrentIndex(curr-1)
+                self.windowsComboxChanged()
+
     def mediaStateChanged(self, state):
         if state == QMediaPlayer.PlayingState:
             self.playButton.setIcon(self.style().standardIcon(QStyle.SP_MediaPause))
@@ -682,9 +712,21 @@ class VideoPlayer(QWidget):
     def setPosition(self):
         self.errorMessages(8)
 
+    def save(self):
+        with open(self.bagfileName.split("/")[-1][:-4] + ".json", "w") as file:
+            json.dump(self.data, file, indent=4, sort_keys=True)
+
     def closeEvent(self,event):
-        with open(self.bagfileName.split("/")[-1][:-4]+".json","w") as file:
-            json.dump(self.data,file,indent=4, sort_keys=True)
+        if self.isBagLoaded:
+            if self.listOftaggedWindows != self.number_of_windows:
+                quit_msg = "Some windows were NOT annotated. Are you sure you want to exit the program?"
+                reply = QMessageBox.question(self, 'Risk of data loss',
+                                            quit_msg, QMessageBox.Yes, QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    event.accept()
+                else:
+                    event.ignore()
+
 
 
 if __name__ == '__main__':
