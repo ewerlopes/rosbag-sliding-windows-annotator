@@ -252,6 +252,11 @@ class VideoPlayer(QWidget):
         self.positionSlider.setRange(0, 0)
         self.positionSlider.sliderPressed.connect(self.setPosition)
 
+
+        self.tree_of_topics = QTreeWidget()
+        self.tree_of_topics.setHeaderLabel("Topics to be considered:")
+        self.tree_of_topics.resize(100,self.tree_of_topics.height())
+
         ### BUTTONS FOR THE SECOND CONTROL BUTTON LAYOUT
         # Create a label widget for buttons in the second layout
         self.winsize_spinbox_label = QLabel('Window size: ')
@@ -321,6 +326,8 @@ class VideoPlayer(QWidget):
         self.control_button_layout1 = QHBoxLayout()
         self.control_button_layout2 = QHBoxLayout()
         self.control_button_layout3 = QHBoxLayout()
+        self.control_button_layout4 = QVBoxLayout()
+
         self.control_button_layout1.setContentsMargins(0, 0, 0, 0)
         self.control_button_layout1.addWidget(self.openButton)
         self.control_button_layout1.addWidget(self.saveButton)
@@ -339,6 +346,10 @@ class VideoPlayer(QWidget):
         self.control_button_layout2.addWidget(self.windowSize_spinBox)
         self.control_button_layout2.addWidget(self.overlap_combo_label)
         self.control_button_layout2.addWidget(self.overlap_combo_box)
+        self.control_button_layout3.addWidget(self.tab_container)
+        self.control_button_layout3.addWidget(self.tree_of_topics)
+        self.control_button_layout4.addWidget(self.logOutput_label)
+        self.control_button_layout4.addWidget(self.logOutput)
         self.controlEnabled = False
 
 
@@ -427,11 +438,8 @@ class VideoPlayer(QWidget):
         layout.addWidget(self.videoWidget)
         layout.addLayout(self.control_button_layout1)
         layout.addLayout(self.control_button_layout2)
-        layout.addWidget(self.tab_container)
         layout.addLayout(self.control_button_layout3)
-        layout.addWidget(self.logOutput_label)
-        layout.addWidget(self.logOutput)
-
+        layout.addLayout(self.control_button_layout4)
         self.setLayout(layout)
 
         self.mediaPlayer.setVideoOutput(self.videoWidget.videoSurface())
@@ -439,6 +447,35 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.positionChanged.connect(self.positionChanged)
         self.mediaPlayer.durationChanged.connect(self.durationChanged)
         self.mediaPlayer.setNotifyInterval(1)
+
+    # app = QApplication(sys.argv)
+    # tree = QTreeWidget()
+    # headerItem = QTreeWidgetItem()
+    # item = QTreeWidgetItem()
+    #
+    # for i in xrange(3):
+    #     parent = QTreeWidgetItem(tree)
+    #     parent.setText(0, "Parent {}".format(i))
+    #     parent.setFlags(parent.flags() | Qt.ItemIsTristate | Qt.ItemIsUserCheckable)
+    #     for x in xrange(5):
+    #         child = QTreeWidgetItem(parent)
+    #         child.setFlags(child.flags() | Qt.ItemIsUserCheckable)
+    #         child.setText(0, "Child {}".format(x))
+    #         child.setCheckState(0, Qt.Unchecked)
+
+    def addToTree(self, tree, dictionary):
+        if isinstance(dictionary, dict):
+            for k, v in dictionary.iteritems():
+                parent = QTreeWidgetItem(tree)
+                parent.setText(0, k)
+                parent.setFlags(parent.flags() | Qt.ItemIsTristate | Qt.ItemIsUserCheckable)
+                self.addToTree(parent, v)
+        else:
+            for txt in dictionary:
+                child = QTreeWidgetItem(tree)
+                child.setFlags(child.flags() | Qt.ItemIsUserCheckable)
+                child.setText(0,txt)
+                child.setCheckState(0, Qt.Unchecked)
 
     #Print out the ID & text of the checked radio button
     def handleTag(self):
@@ -646,7 +683,39 @@ class VideoPlayer(QWidget):
             self.bag_buffers[topic]["msg"].append(msg)
             self.bag_buffers[topic]["time_buffer_secs"].append(t.to_sec() - self.bag_buffers[topic]["s_time"].to_sec())
 
+        types = {}
+        dictionary = {}
+        for k in self.bag_buffers.keys():
+            if k not in self.compressedImageTopics:
+                logger.debug(10*'-'+' ' +k)
+                if not self.bag_buffers[k]["msg"][0]._type in types:
+                    types[self.bag_buffers[k]["msg"][0]._type] = self.makeTopicDictionary(self.bag_buffers[k]["msg"][0],dictionary)
+                    dictionary = {}
+
+        self.addToTree(self.tree_of_topics,types)
+        logger.debug(types)
         return img_buff, img_time_buff_secs
+
+    def isPrimitive(self,obj):
+        """ __slots__ gives the list of fields in the msg. It a message doesn't have it,
+        it is reasonable to say it doesn't contain fields on it, thus, it is a primitive
+        type"""
+        return not hasattr(obj, '__slots__')
+
+    def makeTopicDictionary(self,root, dictionary):
+        if not self.isPrimitive(root):
+            for s in root.__slots__:
+                if not s.startswith("header"):
+                    if self.isPrimitive(getattr(root,s)):
+                        dictionary = self.makeTopicDictionary(s, dictionary)
+                    else:
+                        newDict ={}
+                        dictionary[s] = self.makeTopicDictionary(getattr(root,s),newDict)
+        else:
+            dictionary[root] = ''
+
+        return dictionary
+
 
     #Open CSV file
     def openCsv(self):
@@ -780,7 +849,7 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     player = VideoPlayer()
-    player.resize(640,920)
+    player.resize(1340,1500)
     player.show()
 
     sys.exit(app.exec_())
