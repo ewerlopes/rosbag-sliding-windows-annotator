@@ -459,7 +459,10 @@ class VideoPlayer(QWidget):
                     self.data[t_name]["tags"][current_windows] = [tag_data[l] for l in self.data[t_name]["labels"]]
                     logger.info("Annotation for windows " + str(current_windows) + " was overwriten successfuly!")
                     self.isUnsave = True
-                    self.setWindowTitle('*' + self.filename + '-' + self.windowTitle())
+                    if not self.filename == "":
+                        self.setWindowTitle('*' + self.filename + '-' + __file__)
+                    else:
+                        self.setWindowTitle('* UNTITLED '+ '-' + __file__)
                     # self.csv_writers[t_name].writerows([tag_data])
                     # self.output_data_files[t_name].flush()
                 else:
@@ -468,7 +471,10 @@ class VideoPlayer(QWidget):
                 self.data[t_name]["tags"].append([tag_data[l]for l in self.data[t_name]["labels"]])
                 self.listOftaggedWindows.append(current_windows)
                 self.isUnsave = True
-                self.setWindowTitle('*'+self.filename + '-' + self.windowTitle())
+                if not self.filename == "":
+                    self.setWindowTitle('*' + self.filename + '-' + __file__)
+                else:
+                    self.setWindowTitle('* UNTITLED ' + '-' + __file__)
                 logger.debug("Annotation for windows " + str(current_windows) + "done!")
                 #self.csv_writers[t_name].writerows([tag_data])
                 #self.output_data_files[t_name].flush()
@@ -581,7 +587,7 @@ class VideoPlayer(QWidget):
             logger.debug("CsVHeaders: " + str(self.data[t_name]["labels"]))
 
     def loadImageTopic(self, topic_name):
-        (imageBuffer, self.time_buff_secs) = self.buffer_data(self.bag, topic_name)
+        (imageBuffer, self.time_buff_secs) = self.buffer_data(self.bag, image_topic=topic_name)
         logger.warn(self.time_buff_secs)
         self.process_windows()
         fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
@@ -603,32 +609,44 @@ class VideoPlayer(QWidget):
             for b in self.tag_buttons.keys():
                 self.tag_buttons[b].setEnabled(True)
 
-    def buffer_data(self, bag, input_topic, compressed=True):
-        image_buff = []
-        time_buff_secs = []
+    def buffer_data(self, bag, image_topic, compressed=True):
+        img_buff = []
+        img_time_buff_secs = []
         start_time = None
         bridge = CvBridge()
+        self.bag_buffers = {}
+
+        for t_name in [top["topic"] for top in self.topics]:
+            self.bag_buffers[t_name] = {}
+            self.bag_buffers[t_name]["msg"] = []
+            self.bag_buffers[t_name]["s_time"] = None
+            self.bag_buffers[t_name]["time_buffer_secs"] = []
 
         # Buffer the images, timestamps from the rosbag
-        for topic, msg, t in bag.read_messages(topics=[input_topic]):
-            if start_time is None:
-                start_time = t
+        for topic, msg, t in bag.read_messages():  # topics=[input_topic]):
+
+            if self.bag_buffers[topic]["s_time"] is None:
+                self.bag_buffers[topic]["s_time"] = t
 
             # Get the image
-            if not compressed:
-                try:
-                    cv_image = bridge.imgmsg_to_cv2(msg, "bgr8")
-                except CvBridgeError as e:
-                    print e
-            else:
-                nparr = np.fromstring(msg.data, np.uint8)
-                cv_image = cv2.imdecode(nparr, 1)  #### cv2.CV_LOAD_IMAGE_COLOR has as enum value 1.
-                ## TODO: fix the problem with the this enum value.
+            if topic == image_topic:
+                if not compressed:
+                    try:
+                        cv_image = bridge.imgmsg_to_cv2(msg, "bgr8")
+                    except CvBridgeError as e:
+                        print e
+                else:
+                    nparr = np.fromstring(msg.data, np.uint8)
+                    cv_image = cv2.imdecode(nparr, 1)  #### cv2.CV_LOAD_IMAGE_COLOR has as enum value 1.
+                    ## TODO: fix the problem with the this enum value.
 
-            image_buff.append(cv_image)
-            time_buff_secs.append(t.to_sec() - start_time.to_sec())
+                img_buff.append(cv_image)
+                img_time_buff_secs.append(t.to_sec() - self.bag_buffers[topic]["s_time"].to_sec())
 
-        return image_buff, time_buff_secs
+            self.bag_buffers[topic]["msg"].append(msg)
+            self.bag_buffers[topic]["time_buffer_secs"].append(t.to_sec() - self.bag_buffers[topic]["s_time"].to_sec())
+
+        return img_buff, img_time_buff_secs
 
     #Open CSV file
     def openCsv(self):
@@ -736,7 +754,7 @@ class VideoPlayer(QWidget):
             with open(self.filename, "w") as save_file:
                 json.dump(self.data, save_file, indent=4, sort_keys=True)
             self.isUnsave = False
-            self.setWindowTitle(self.filename + '-' + self.windowTitle())
+            self.setWindowTitle(self.filename + '-' + __file__)
 
     def save(self):
         if self.filename != '':
