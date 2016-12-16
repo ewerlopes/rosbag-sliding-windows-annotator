@@ -239,7 +239,7 @@ class VideoPlayer(QWidget):
         self.previousDWindowButton.setIcon(self.style().standardIcon(QStyle.SP_MediaSkipBackward))
         self.previousDWindowButton.clicked.connect(self.moveWindowBackward)
 
-        self.reloadButton = QPushButton()
+        self.reloadButton = QPushButton("Load")
         self.reloadButton.setEnabled(False)
         self.reloadButton.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
         self.reloadButton.clicked.connect(self.reload)
@@ -256,6 +256,7 @@ class VideoPlayer(QWidget):
         self.tree_of_topics = QTreeWidget()
         self.tree_of_topics.setHeaderLabel("Topics to be considered:")
         self.tree_of_topics.resize(100,self.tree_of_topics.height())
+        self.tree_of_topics.itemSelectionChanged.connect(self.loadTreeSelection)
 
         ### BUTTONS FOR THE SECOND CONTROL BUTTON LAYOUT
         # Create a label widget for buttons in the second layout
@@ -448,73 +449,73 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.durationChanged.connect(self.durationChanged)
         self.mediaPlayer.setNotifyInterval(1)
 
-    # app = QApplication(sys.argv)
-    # tree = QTreeWidget()
-    # headerItem = QTreeWidgetItem()
-    # item = QTreeWidgetItem()
-    #
-    # for i in xrange(3):
-    #     parent = QTreeWidgetItem(tree)
-    #     parent.setText(0, "Parent {}".format(i))
-    #     parent.setFlags(parent.flags() | Qt.ItemIsTristate | Qt.ItemIsUserCheckable)
-    #     for x in xrange(5):
-    #         child = QTreeWidgetItem(parent)
-    #         child.setFlags(child.flags() | Qt.ItemIsUserCheckable)
-    #         child.setText(0, "Child {}".format(x))
-    #         child.setCheckState(0, Qt.Unchecked)
-
     def addToTree(self, tree, dictionary):
         if isinstance(dictionary, dict):
             for k, v in dictionary.iteritems():
-                parent = QTreeWidgetItem(tree)
-                parent.setText(0, k)
-                parent.setFlags(parent.flags() | Qt.ItemIsTristate | Qt.ItemIsUserCheckable)
-                self.addToTree(parent, v)
+                if v == []:
+                    child = QTreeWidgetItem(tree)
+                    child.setFlags(child.flags() | Qt.ItemIsUserCheckable)
+                    child.setText(0,k)
+                    child.setCheckState(0, Qt.Unchecked)
+                else:
+                    parent = QTreeWidgetItem(tree)
+                    parent.setText(0, k)
+                    parent.setFlags(parent.flags() | Qt.ItemIsTristate | Qt.ItemIsUserCheckable)
+                    self.addToTree(parent, v)
+
+
+    def loadTreeSelection(self):
+        if self.listOftaggedWindows:
+            self.errorMessages(9)
         else:
-            for txt in dictionary:
-                child = QTreeWidgetItem(tree)
-                child.setFlags(child.flags() | Qt.ItemIsUserCheckable)
-                child.setText(0,txt)
-                child.setCheckState(0, Qt.Unchecked)
+            getSelected = self.tree_of_topics.selectedItems()
+            logger.debug(getSelected)
+            if getSelected:
+                baseNode = getSelected[0]
+                getChildNode = baseNode.text(0)
+                logger.debug(getChildNode)
 
     #Print out the ID & text of the checked radio button
     def handleTag(self):
-        for t_name in self.label_group_boxes.keys():
-            tag_data = {}
-            for label in self.label_options[t_name].keys():
-                for i in range(len(self.label_options[t_name][label])):
-                    if self.label_options[t_name][label][i].isChecked():
-                        #logger.debug(self.label_button_groups[t_name][label].checkedId())
-                        tag_data[label] = self.label_options[t_name][label][i].text()
-            current_windows = int(self.windows_combo_box.currentText())
+        if not self.tree_of_topics.selectedItems():
+            self.errorMessages(10)
+        else:
+            for t_name in self.label_group_boxes.keys():
+                tag_data = {}
+                for label in self.label_options[t_name].keys():
+                    for i in range(len(self.label_options[t_name][label])):
+                        if self.label_options[t_name][label][i].isChecked():
+                            #logger.debug(self.label_button_groups[t_name][label].checkedId())
+                            tag_data[label] = self.label_options[t_name][label][i].text()
+                current_windows = int(self.windows_combo_box.currentText())
 
-            if current_windows in self.listOftaggedWindows:         # if an annotation for the windows already exists
-                msg = "An anottation was already given to this window of data for the '" \
-                      +str(t_name) + "' tab. Do you want to overwrite it?"
-                reply = QMessageBox.question(self, 'Confirm Overwrite',msg, QMessageBox.Yes, QMessageBox.No)
-                if reply == QMessageBox.Yes:
-                    self.data[t_name]["tags"][current_windows] = [tag_data[l] for l in self.data[t_name]["labels"]]
-                    logger.info("Annotation for windows " + str(current_windows) + " was overwriten successfuly!")
+                if current_windows in self.listOftaggedWindows:         # if an annotation for the windows already exists
+                    msg = "An anottation was already given to this window of data for the '" \
+                          +str(t_name) + "' tab. Do you want to overwrite it?"
+                    reply = QMessageBox.question(self, 'Confirm Overwrite',msg, QMessageBox.Yes, QMessageBox.No)
+                    if reply == QMessageBox.Yes:
+                        self.data[t_name]["tags"][current_windows] = [tag_data[l] for l in self.data[t_name]["labels"]]
+                        logger.info("Annotation for windows " + str(current_windows) + " was overwriten successfuly!")
+                        self.isUnsave = True
+                        if not self.filename == "":
+                            self.setWindowTitle('*' + self.filename + '-' + __file__)
+                        else:
+                            self.setWindowTitle('* UNTITLED '+ '-' + __file__)
+                        # self.csv_writers[t_name].writerows([tag_data])
+                        # self.output_data_files[t_name].flush()
+                    else:
+                        pass
+                else:
+                    self.data[t_name]["tags"].append([tag_data[l]for l in self.data[t_name]["labels"]])
+                    self.listOftaggedWindows.append(current_windows)
                     self.isUnsave = True
                     if not self.filename == "":
                         self.setWindowTitle('*' + self.filename + '-' + __file__)
                     else:
-                        self.setWindowTitle('* UNTITLED '+ '-' + __file__)
-                    # self.csv_writers[t_name].writerows([tag_data])
-                    # self.output_data_files[t_name].flush()
-                else:
-                    pass
-            else:
-                self.data[t_name]["tags"].append([tag_data[l]for l in self.data[t_name]["labels"]])
-                self.listOftaggedWindows.append(current_windows)
-                self.isUnsave = True
-                if not self.filename == "":
-                    self.setWindowTitle('*' + self.filename + '-' + __file__)
-                else:
-                    self.setWindowTitle('* UNTITLED ' + '-' + __file__)
-                logger.debug("Annotation for windows " + str(current_windows) + "done!")
-                #self.csv_writers[t_name].writerows([tag_data])
-                #self.output_data_files[t_name].flush()
+                        self.setWindowTitle('* UNTITLED ' + '-' + __file__)
+                    logger.debug("Annotation for windows " + str(current_windows) + "done!")
+                    #self.csv_writers[t_name].writerows([tag_data])
+                    #self.output_data_files[t_name].flush()
 
     # processes the change in spinner windowsSize element
     def windowSizeChanged(self):
@@ -561,6 +562,7 @@ class VideoPlayer(QWidget):
 
     def reload(self):
         self.windows_combo_box.clear()
+        self.loadTreeSelection()
         self.loadImageTopic(self.topics_combo_box.currentText())
 
     def openFile(self):
@@ -629,7 +631,7 @@ class VideoPlayer(QWidget):
         self.process_windows()
         fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
         height, width, bytesPerComponent = imageBuffer[0].shape
-        video_writer = cv2.VideoWriter("myvid.avi", fourcc, framerate, (width,height), cv2.IMREAD_COLOR)
+        video_writer = cv2.VideoWriter(self.bagfileName[:-4]+".avi", fourcc, framerate, (width,height), cv2.IMREAD_COLOR)
 
         if not video_writer.isOpened():
             self.errorMessages(2)
@@ -638,7 +640,7 @@ class VideoPlayer(QWidget):
                 video_writer.write(frame)
             video_writer.release()
 
-            self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile("/home/ewerlopes/developer/rosbag_annotator/myvid.avi")))
+            self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(self.bagfileName[:-4]+".avi")))
             self.playButton.setEnabled(True)
             self.previousDWindowButton.setEnabled(True)
             self.nexstDWindowButton.setEnabled(True)
@@ -683,17 +685,18 @@ class VideoPlayer(QWidget):
             self.bag_buffers[topic]["msg"].append(msg)
             self.bag_buffers[topic]["time_buffer_secs"].append(t.to_sec() - self.bag_buffers[topic]["s_time"].to_sec())
 
-        types = {}
+        self.types = {}
         dictionary = {}
         for k in self.bag_buffers.keys():
             if k not in self.compressedImageTopics:
                 logger.debug(10*'-'+' ' +k)
-                if not self.bag_buffers[k]["msg"][0]._type in types:
-                    types[self.bag_buffers[k]["msg"][0]._type] = self.makeTopicDictionary(self.bag_buffers[k]["msg"][0],dictionary)
+                if not self.bag_buffers[k]["msg"][0]._type in self.types:
+                    self.types[self.bag_buffers[k]["msg"][0]._type] = self.makeTopicDictionary(self.bag_buffers[k]["msg"][0],dictionary)
                     dictionary = {}
 
-        self.addToTree(self.tree_of_topics,types)
-        logger.debug(types)
+        #self.addToTree(self.tree_of_topics, self.dat)
+        self.addToTree(self.tree_of_topics,self.types)
+        logger.debug(json.dumps(self.types, indent=4, sort_keys=True))
         return img_buff, img_time_buff_secs
 
     def isPrimitive(self,obj):
@@ -712,7 +715,7 @@ class VideoPlayer(QWidget):
                         newDict ={}
                         dictionary[s] = self.makeTopicDictionary(getattr(root,s),newDict)
         else:
-            dictionary[root] = ''
+            dictionary[root] = []
 
         return dictionary
 
@@ -749,8 +752,12 @@ class VideoPlayer(QWidget):
         elif index == 7:
             msgBox.setText("Error: something went in the windows partition!")
         elif index == 8:
-            msgBox.setText('Error: Manually moving the slider is not allowed in this '
-                           'version. Use the "Window" drop-down list!')
+            msgBox.setText('Error: Manually moving the slider is NOT allowed in this version. '
+                           'Use the "Window" drop-down list!')
+        elif index == 9:
+            msgBox.setText('You cannot change the target features after loading the bag file!')
+        elif index == 10:
+            msgBox.setText('You must select at least one topic in the check box tree!')
         msgBox.resize(100,40)
         msgBox.exec_()
 
