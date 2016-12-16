@@ -474,33 +474,22 @@ class VideoPlayer(QWidget):
                     self.addToTree(parent, v)
 
 
-    def getTreeSelection(self):
-        checked = dict()
-        hasOneChecked = False
-        if len(self.listOftaggedWindows):
-            self.errorMessages(9)
+    def getTreeSelection(self,subroot, dictionary):
+        if subroot.childCount():
+            logger.debug("Decending: " + subroot.text(0))
+            for i in range(subroot.childCount()):
+                parent = subroot.child(i)
+                newDict = {}
+                dictionary[parent.text(0)] = self.getTreeSelection(parent,newDict)
         else:
+            if subroot.checkState(0) == QtCore.Qt.Checked:
+                dictionary = "ON"
+                logger.debug("Set ON")
+            else:
+                dictionary = "OFF"
+                logger.debug("Set OFF")
 
-            root = self.tree_of_topics.invisibleRootItem()
-            signal_count = root.childCount()
-
-            for i in range(signal_count):
-                signal = root.child(i)
-                checked_sweeps = list()
-                num_children = signal.childCount()
-
-                for n in range(num_children):
-                    child = signal.child(n)
-
-                    if child.checkState(0) == QtCore.Qt.Checked:
-                        checked_sweeps.append(child.text(0))
-                        hasOneChecked = True
-                checked[signal.text(0)] = checked_sweeps
-
-        if hasOneChecked:
-            self.topics_to_save = checked
-        else:
-            self.topics_to_save = {}
+        return dictionary
 
     def hasSelectedItemOnTree(self):
         checked = dict()
@@ -534,8 +523,9 @@ class VideoPlayer(QWidget):
             self.errorMessages(10)
         else:
             if not len(self.listOftaggedWindows):
-                self.getTreeSelection()
+                self.topics_to_save = self.getTreeSelection(self.tree_of_topics.invisibleRootItem(),self.topics_to_save)
                 self.tree_of_topics.setEnabled(False)
+                self.tree_of_topics.expandAll()
                 logger.debug(self.topics_to_save)
 
             for t_name in self.label_group_boxes.keys():
