@@ -217,6 +217,7 @@ class VideoPlayer(QWidget):
         # the jason config data for setting labels
         self.label_configs = self.parseConfig()
         self.data = {}
+        self.types = {}          # This loads the type of objects in the treeviewer. Used for saying which topic to save.
         self.isBagLoaded = False
         self.videoWidget = VideoWidget()
         self.openButton = QPushButton("Open...")
@@ -254,9 +255,8 @@ class VideoPlayer(QWidget):
 
 
         self.tree_of_topics = QTreeWidget()
-        self.tree_of_topics.setHeaderLabel("Topics to be considered:")
-        self.tree_of_topics.resize(100,self.tree_of_topics.height())
-        self.tree_of_topics.itemSelectionChanged.connect(self.loadTreeSelection)
+        self.tree_of_topics.setHeaderLabel("Save topics:")
+        self.tree_of_topics.setMaximumWidth(500)
 
         ### BUTTONS FOR THE SECOND CONTROL BUTTON LAYOUT
         # Create a label widget for buttons in the second layout
@@ -264,6 +264,7 @@ class VideoPlayer(QWidget):
         self.overlap_combo_label = QLabel('Overlap:')
         self.topics_combo_label = QLabel('Image Topics:')
         self.windows_combo_label = QLabel('Window:')
+        self.taggeds_label = QLabel("Annotated windows: ")
         self.logOutput_label = QLabel("Log area:")
         self.duration_label = QLabel("--:--")
 
@@ -286,10 +287,16 @@ class VideoPlayer(QWidget):
         self.windows_combo_box.currentIndexChanged.connect(self.windowsComboxChanged)
 
         # Create log area
+        self.logWindowsTagged = QTextEdit()
+        self.logWindowsTagged.setReadOnly(True)
+        self.logWindowsTagged.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.logWindowsTagged.setMaximumHeight(50)
+        self.logWindowsTagged.setTextColor(QColor("green"))
 
+        # Create log area
         self.logOutput = QTextEdit()
         self.logOutput.setReadOnly(True)
-        self.logOutput.setLineWrapMode(QTextEdit.NoWrap)
+        self.logOutput.setLineWrapMode(QTextEdit.WidgetWidth)
 
         self.log_font = self.logOutput.font()
         self.log_font.setFamily("Courier")
@@ -309,6 +316,7 @@ class VideoPlayer(QWidget):
         # with open('log.txt', 'w') as yourFile:
         #    yourFile.write(str(yourQTextEdit.toPlainText()))
 
+        self.topics_to_save = {}
 
         # Create tabs
         self.tab_container = QTabWidget()
@@ -349,6 +357,8 @@ class VideoPlayer(QWidget):
         self.control_button_layout2.addWidget(self.overlap_combo_box)
         self.control_button_layout3.addWidget(self.tab_container)
         self.control_button_layout3.addWidget(self.tree_of_topics)
+        self.control_button_layout4.addWidget(self.taggeds_label)
+        self.control_button_layout4.addWidget(self.logWindowsTagged)
         self.control_button_layout4.addWidget(self.logOutput_label)
         self.control_button_layout4.addWidget(self.logOutput)
         self.controlEnabled = False
@@ -464,22 +474,70 @@ class VideoPlayer(QWidget):
                     self.addToTree(parent, v)
 
 
-    def loadTreeSelection(self):
-        if self.listOftaggedWindows:
+    def getTreeSelection(self):
+        checked = dict()
+        hasOneChecked = False
+        if len(self.listOftaggedWindows):
             self.errorMessages(9)
         else:
-            getSelected = self.tree_of_topics.selectedItems()
-            logger.debug(getSelected)
-            if getSelected:
-                baseNode = getSelected[0]
-                getChildNode = baseNode.text(0)
-                logger.debug(getChildNode)
+
+            root = self.tree_of_topics.invisibleRootItem()
+            signal_count = root.childCount()
+
+            for i in range(signal_count):
+                signal = root.child(i)
+                checked_sweeps = list()
+                num_children = signal.childCount()
+
+                for n in range(num_children):
+                    child = signal.child(n)
+
+                    if child.checkState(0) == QtCore.Qt.Checked:
+                        checked_sweeps.append(child.text(0))
+                        hasOneChecked = True
+                checked[signal.text(0)] = checked_sweeps
+
+        if hasOneChecked:
+            self.topics_to_save = checked
+        else:
+            self.topics_to_save = {}
+
+    def hasSelectedItemOnTree(self):
+        checked = dict()
+        hasOneChecked = False
+        if len(self.listOftaggedWindows):
+            self.errorMessages(9)
+        else:
+
+            root = self.tree_of_topics.invisibleRootItem()
+            signal_count = root.childCount()
+
+            for i in range(signal_count):
+                signal = root.child(i)
+                checked_sweeps = list()
+                num_children = signal.childCount()
+
+                for n in range(num_children):
+                    child = signal.child(n)
+
+                    if child.checkState(0) == QtCore.Qt.Checked:
+                        checked_sweeps.append(child.text(0))
+                        hasOneChecked = True
+                checked[signal.text(0)] = checked_sweeps
+
+        return hasOneChecked
 
     #Print out the ID & text of the checked radio button
     def handleTag(self):
-        if not self.tree_of_topics.selectedItems():
+        logger.debug("In the hangle tag")
+        if not len(self.topics_to_save) and not self.hasSelectedItemOnTree():
             self.errorMessages(10)
         else:
+            if not len(self.listOftaggedWindows):
+                self.getTreeSelection()
+                self.tree_of_topics.setEnabled(False)
+                logger.debug(self.topics_to_save)
+
             for t_name in self.label_group_boxes.keys():
                 tag_data = {}
                 for label in self.label_options[t_name].keys():
@@ -516,6 +574,9 @@ class VideoPlayer(QWidget):
                     logger.debug("Annotation for windows " + str(current_windows) + "done!")
                     #self.csv_writers[t_name].writerows([tag_data])
                     #self.output_data_files[t_name].flush()
+
+
+        self.logWindowsTagged.setText(str(self.listOftaggedWindows))
 
     # processes the change in spinner windowsSize element
     def windowSizeChanged(self):
@@ -558,11 +619,11 @@ class VideoPlayer(QWidget):
             t_details["image_topic"] = self.current_image_topic
             self.data[t_name] = t_details
 
-
-
     def reload(self):
         self.windows_combo_box.clear()
-        self.loadTreeSelection()
+        self.topics_to_save = {}
+        self.types = {}
+        self.tree_of_topics.clear()
         self.loadImageTopic(self.topics_combo_box.currentText())
 
     def openFile(self):
@@ -624,6 +685,10 @@ class VideoPlayer(QWidget):
             self.csv_writers[t_name] = csv.DictWriter(self.output_data_files[t_name], self.data[t_name]["labels"])
             self.csv_writers[t_name].writeheader()
             logger.debug("CsVHeaders: " + str(self.data[t_name]["labels"]))
+
+        self.logWindowsTagged.setText(str(self.listOftaggedWindows))
+        self.topics_to_save = {}
+        self.tree_of_topics.setEnabled(True)
 
     def loadImageTopic(self, topic_name):
         (imageBuffer, self.time_buff_secs) = self.buffer_data(self.bag, image_topic=topic_name)
@@ -757,7 +822,8 @@ class VideoPlayer(QWidget):
         elif index == 9:
             msgBox.setText('You cannot change the target features after loading the bag file!')
         elif index == 10:
-            msgBox.setText('You must select at least one topic in the check box tree!')
+            msgBox.setText('You must select at least one topic in the check box tree! '
+                           'Tip: check the item but also click on its name')
         msgBox.resize(100,40)
         msgBox.exec_()
 
@@ -792,13 +858,13 @@ class VideoPlayer(QWidget):
     def positionChanged(self, position):
         self.duration_label.setText(str((int)((position / 1000) / 60)).zfill(2) + ":" + str((int)(position / 1000) % 60).zfill(2))
         if float((position / 1000) % 60) >= self.windows[int(self.windows_combo_box.currentText())][1]:
-            logger.debug("BegW: " + str(self.windows[int(self.windows_combo_box.currentText())][0]))
-            logger.debug("EndW: " + str(self.windows[int(self.windows_combo_box.currentText())][1]))
-            logger.debug("CurEnd:" + str(float((position / 1000) % 60)))
-            logger.debug(40*'%')
+            #logger.debug("BegW: " + str(self.windows[int(self.windows_combo_box.currentText())][0]))
+            #logger.debug("EndW: " + str(self.windows[int(self.windows_combo_box.currentText())][1]))
+            #logger.debug("CurEnd:" + str(float((position / 1000) % 60)))
+            #logger.debug(40*'%')
             millis = self.windows[int(self.windows_combo_box.currentText())][0] * 1000
             self.updateSliderPosition(millis)
-        else: logger.debug("Cur:" + str(float((position / 1000) % 60)))
+        #else: logger.debug("Cur:" + str(float((position / 1000) % 60)))
         self.positionSlider.setValue(position)
 
     def keyPressEvent(self,event):
