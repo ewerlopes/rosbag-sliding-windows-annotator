@@ -1,24 +1,26 @@
 {
     "Player": {
+        "duration": 20.991719, 
         "image_topic": "/ext_usb_camera/image/compressed", 
         "labels": [
             "Control", 
             "High_level", 
             "Expectation", 
-            "Activity"
+            "Activity", 
+            "interval_seconds"
         ], 
+        "number_windows": 12, 
         "overlap": 50, 
         "tags": [
-            [], 
-            [], 
-            [], 
-            [], 
-            [], 
             [
                 "Very low", 
                 "Dodging", 
                 "Very low", 
-                "Very Low"
+                "Very Low", 
+                {
+                    "end": 3.0, 
+                    "start": 0.0
+                }
             ], 
             [], 
             [], 
@@ -26,12 +28,11 @@
             [], 
             [], 
             [], 
-            [
-                "Very low", 
-                "Dodging", 
-                "Very low", 
-                "Very Low"
-            ]
+            [], 
+            [], 
+            [], 
+            [], 
+            []
         ], 
         "win_size": 3
     }

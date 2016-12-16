@@ -7,45 +7,19 @@ using QtMultimedia's QAbstractVideoSurface.
 The following is a translation into PyQt5 from the C++ example found in
 C:\QtEnterprise\5.1.1\msvc2010\examples\multimediawidgets\customvideosurface\customvideowidget."""
 from __future__ import division
-import csv
-import cv2
-import os
 import rosbag
-import logging
-import argparse
-import textwrap
-import rospy
+
 import json
-import random
 import matplotlib
 
 matplotlib.use("Qt5Agg")
-import matplotlib.pyplot as plt
 
-from sensor_msgs.msg import Image
-from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge, CvBridgeError
-import sys, copy
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtMultimedia import *
-from PyQt5.QtMultimediaWidgets import *
-import warnings
-from matplotlib.widgets import Cursor
-from numpy import arange, sin, pi
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-import matplotlib.transforms as transforms
-from matplotlib.collections import LineCollection
-from matplotlib.colors import ListedColormap, BoundaryNorm
 from annotator_utils import *
-
-start_point = False
-end_point = False
-boxInitialized = False
-annotationColors = ['#00FF00', '#FF00FF','#FFFF00','#00FFFF','#FFA500']
-gantEnabled = False
 
 ### logging setup #####
 logger = logging.getLogger(__name__)
@@ -255,7 +229,7 @@ class VideoPlayer(QWidget):
 
 
         self.tree_of_topics = QTreeWidget()
-        self.tree_of_topics.setHeaderLabel("Save topics:")
+        self.tree_of_topics.setHeaderLabel("Topics")
         self.tree_of_topics.setMaximumWidth(500)
 
         ### BUTTONS FOR THE SECOND CONTROL BUTTON LAYOUT
@@ -464,19 +438,19 @@ class VideoPlayer(QWidget):
             for k, v in dictionary.iteritems():
                 if v == []:
                     child = QTreeWidgetItem(tree)
-                    child.setFlags(child.flags() | Qt.ItemIsUserCheckable)
+                    #child.setFlags(child.flags() | Qt.ItemIsUserCheckable)
                     child.setText(0,k)
-                    child.setCheckState(0, Qt.Unchecked)
+                    #child.setCheckState(0, Qt.Unchecked)
                 else:
                     parent = QTreeWidgetItem(tree)
                     parent.setText(0, k)
-                    parent.setFlags(parent.flags() | Qt.ItemIsTristate | Qt.ItemIsUserCheckable)
+                    #parent.setFlags(parent.flags() | Qt.ItemIsTristate | Qt.ItemIsUserCheckable)
+                    #parent.setFlags(parent.flags() | Qt.ItemIsTristate)
                     self.addToTree(parent, v)
 
 
     def getTreeSelection(self,subroot, dictionary):
         if subroot.childCount():
-            logger.debug("Decending: " + subroot.text(0))
             for i in range(subroot.childCount()):
                 parent = subroot.child(i)
                 newDict = {}
@@ -484,11 +458,8 @@ class VideoPlayer(QWidget):
         else:
             if subroot.checkState(0) == QtCore.Qt.Checked:
                 dictionary = "ON"
-                logger.debug("Set ON")
             else:
                 dictionary = "OFF"
-                logger.debug("Set OFF")
-
         return dictionary
 
     def hasSelectedItemOnTree(self):
@@ -516,55 +487,54 @@ class VideoPlayer(QWidget):
 
         return hasOneChecked
 
+    def updateLabelHeaders(self):
+        for t_name in self.label_group_boxes.keys():
+            self.data[t_name]["labels"] = self.data[t_name]["labels"] + tuple([l for l in self.topics_to_save.keys()])
+
     #Print out the ID & text of the checked radio button
     def handleTag(self):
-        logger.debug("In the hangle tag")
-        if not len(self.topics_to_save) and not self.hasSelectedItemOnTree():
-            self.errorMessages(10)
-        else:
-            if not len(self.listOftaggedWindows):
-                self.topics_to_save = self.getTreeSelection(self.tree_of_topics.invisibleRootItem(),self.topics_to_save)
-                self.tree_of_topics.setEnabled(False)
-                self.tree_of_topics.expandAll()
-                logger.debug(self.topics_to_save)
+        if not len(self.listOftaggedWindows):
+            self.topics_to_save = self.getTreeSelection(self.tree_of_topics.invisibleRootItem(),self.topics_to_save)
+            logger.debug(self.topics_to_save)
 
-            for t_name in self.label_group_boxes.keys():
-                tag_data = {}
-                for label in self.label_options[t_name].keys():
-                    for i in range(len(self.label_options[t_name][label])):
-                        if self.label_options[t_name][label][i].isChecked():
-                            #logger.debug(self.label_button_groups[t_name][label].checkedId())
-                            tag_data[label] = self.label_options[t_name][label][i].text()
-                current_windows = int(self.windows_combo_box.currentText())
+        for t_name in self.label_group_boxes.keys():
+            tag_data = {}
+            for label in self.label_options[t_name].keys():
+                for i in range(len(self.label_options[t_name][label])):
+                    if self.label_options[t_name][label][i].isChecked():
+                        #logger.debug(self.label_button_groups[t_name][label].checkedId())
+                        tag_data[label] = self.label_options[t_name][label][i].text()
+            current_windows = int(self.windows_combo_box.currentText())
 
-                if current_windows in self.listOftaggedWindows:         # if an annotation for the windows already exists
-                    msg = "An anottation was already given to this window of data for the '" \
-                          +str(t_name) + "' tab. Do you want to overwrite it?"
-                    reply = QMessageBox.question(self, 'Confirm Overwrite',msg, QMessageBox.Yes, QMessageBox.No)
-                    if reply == QMessageBox.Yes:
-                        self.data[t_name]["tags"][current_windows] = [tag_data[l] for l in self.data[t_name]["labels"]]
-                        logger.info("Annotation for windows " + str(current_windows) + " was overwriten successfuly!")
-                        self.isUnsave = True
-                        if not self.filename == "":
-                            self.setWindowTitle('*' + self.filename + '-' + __file__)
-                        else:
-                            self.setWindowTitle('* UNTITLED '+ '-' + __file__)
-                        # self.csv_writers[t_name].writerows([tag_data])
-                        # self.output_data_files[t_name].flush()
-                    else:
-                        pass
-                else:
-                    self.data[t_name]["tags"].append([tag_data[l]for l in self.data[t_name]["labels"]])
-                    self.listOftaggedWindows.append(current_windows)
+
+            tag_data["interval_seconds"] = {"start": self.windows[current_windows][0], "end": self.windows[current_windows][1]}
+
+            if current_windows in self.listOftaggedWindows:         # if an annotation for the windows already exists
+                msg = "An anottation was already given to this window of data for the '" \
+                      +str(t_name) + "' tab. Do you want to overwrite it?"
+                reply = QMessageBox.question(self, 'Confirm Overwrite',msg, QMessageBox.Yes, QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    self.data[t_name]["tags"][current_windows] = [tag_data[l] for l in self.data[t_name]["labels"]]
+                    logger.info("Annotation for windows " + str(current_windows) + " was overwriten successfuly!")
                     self.isUnsave = True
                     if not self.filename == "":
                         self.setWindowTitle('*' + self.filename + '-' + __file__)
                     else:
-                        self.setWindowTitle('* UNTITLED ' + '-' + __file__)
-                    logger.debug("Annotation for windows " + str(current_windows) + "done!")
-                    #self.csv_writers[t_name].writerows([tag_data])
-                    #self.output_data_files[t_name].flush()
-
+                        self.setWindowTitle('* UNTITLED '+ '-' + __file__)
+                    # self.csv_writers[t_name].writerows([tag_data])
+                    # self.output_data_files[t_name].flush()
+            else:
+                self.data[t_name]["tags"][current_windows] = [tag_data[l] for l in self.data[t_name]["labels"]]
+                self.listOftaggedWindows.append(current_windows)
+                self.listOftaggedWindows.sort()
+                self.isUnsave = True
+                if not self.filename == "":
+                    self.setWindowTitle('*' + self.filename + '-' + __file__)
+                else:
+                    self.setWindowTitle('* UNTITLED ' + '-' + __file__)
+                logger.debug("Annotation for windows " + str(current_windows) + "done!")
+                #self.csv_writers[t_name].writerows([tag_data])
+                #self.output_data_files[t_name].flush()
 
         self.logWindowsTagged.setText(str(self.listOftaggedWindows))
 
@@ -602,18 +572,35 @@ class VideoPlayer(QWidget):
     def loadOutputFiles(self):
         for t_name in self.label_group_boxes.keys():
             t_details = {}
-            t_details["tags"] = [[] for n in range(self.number_of_windows)]
-            t_details["labels"] = tuple([label for label in self.tabs_labels[t_name].keys()])
+            t_details["tags"] = [[] for n in range(self.number_of_windows)]             # the tag you give for the window
+            headers = tuple([label for label in self.tabs_labels[t_name].keys()] + ["interval_seconds"])
+            t_details["labels"] =  headers #how the feature is called
             t_details["win_size"] = self.wsize_value
             t_details["overlap"] = self.w_overlap_value
+            t_details["number_windows"] = self.number_of_windows
             t_details["image_topic"] = self.current_image_topic
+            t_details["duration"] = self.duration
             self.data[t_name] = t_details
 
     def reload(self):
+        """Checks saved work before reseting."""
+        if not len(self.listOftaggedWindows) and self.isUnsave:
+            quit_msg = "Current work not saved. Do you want to proceed? DATA MAY BE LOST!"
+            reply = QMessageBox.question(self, 'Risk of data loss',
+                                         quit_msg, QMessageBox.Yes, QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                self.reset()
+        else:
+            self.reset()
+
+    def reset(self):
+        """Unconditionally reset the environment"""
         self.windows_combo_box.clear()
         self.topics_to_save = {}
         self.types = {}
+        self.isUnsave = True
         self.tree_of_topics.clear()
+        self.listOftaggedWindows = []
         self.loadImageTopic(self.topics_combo_box.currentText())
 
     def openFile(self):
@@ -644,7 +631,7 @@ class VideoPlayer(QWidget):
                 else:
                     self.errorMessages(6)
             self.isBagLoaded = True
-            self.reload()
+            self.reset()
 
     def process_windows(self):
         if self.w_overlap_value:
@@ -892,6 +879,8 @@ class VideoPlayer(QWidget):
         if self.filename != '':
             with open(self.filename, "w") as save_file:
                 json.dump(self.data, save_file, indent=4, sort_keys=True)
+            self.isUnsave = False
+            self.setWindowTitle(self.filename + '-' + __file__)
         else:
             self.saveAs()
 
