@@ -508,7 +508,7 @@ class VideoPlayer(QWidget):
                       +str(t_name) + "' tab. Do you want to overwrite it?"
                 reply = QMessageBox.question(self, 'Confirm Overwrite',msg, QMessageBox.Yes, QMessageBox.No)
                 if reply == QMessageBox.Yes:
-                    self.data[t_name]["tags"][current_windows] = [tag_data[l] for l in self.data[t_name]["labels"]]
+                    self.data[t_name]["tags"][current_windows] = tag_data#[tag_data[l] for l in self.data[t_name]["labels"]]
                     logger.info("ANNOTATION FOR WINDOWS " + str(current_windows) + " <- OVERWRITTEN!")
                     self.isUnsave = True
                     if not self.filename == "":
@@ -573,6 +573,7 @@ class VideoPlayer(QWidget):
             t_details["number_windows"] = self.number_of_windows
             t_details["image_topic"] = self.current_image_topic
             t_details["duration"] = self.duration
+            t_details["topics"] = {}
             self.data[t_name] = t_details
 
     def reload(self):
@@ -726,6 +727,7 @@ class VideoPlayer(QWidget):
                     self.types[self.bag_buffers[k]["msg"][0]._type] = self.makeTopicDictionary(self.bag_buffers[k]["msg"][0],dictionary)
                     dictionary = {}
 
+        self.data["topics"] = self.types
         self.addToTree(self.tree_of_topics,self.types)
         #logger.debug(json.dumps(self.types, indent=4, sort_keys=True))
         return img_buff, img_time_buff_secs

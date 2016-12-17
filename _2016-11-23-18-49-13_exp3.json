@@ -1,0 +1,69 @@
+{
+    "Player": {
+        "duration": 20.991719, 
+        "image_topic": "/ext_usb_camera/image/compressed", 
+        "labels": [
+            "Control", 
+            "High_level", 
+            "Expectation", 
+            "Activity", 
+            "interval_seconds"
+        ], 
+        "number_windows": 12, 
+        "overlap": 50, 
+        "tags": [
+            [
+                "Very low", 
+                "Dodging", 
+                "Very low", 
+                "Very Low", 
+                {
+                    "end": 3.0, 
+                    "start": 0.0
+                }
+            ], 
+            [
+                "Very low", 
+                "Dodging", 
+                "Very low", 
+                "Very Low", 
+                {
+                    "end": 4.5, 
+                    "start": 1.5
+                }
+            ], 
+            [], 
+            [], 
+            [], 
+            [], 
+            [], 
+            [], 
+            [], 
+            [], 
+            [], 
+            []
+        ], 
+        "topics": {}, 
+        "win_size": 3
+    }, 
+    "topics": {
+        "robogame_imu_sensor/imu_state": {
+            "gyro": {
+                "x": [], 
+                "y": [], 
+                "z": []
+            }, 
+            "linear_acc": {
+                "x": [], 
+                "y": [], 
+                "z": []
+            }, 
+            "q": []
+        }, 
+        "robogame_kinectfeatures_extractor/kinect_feat": {
+            "ci": [], 
+            "distance": [], 
+            "proximity": []
+        }
+    }
+}
