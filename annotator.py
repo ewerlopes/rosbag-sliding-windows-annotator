@@ -262,7 +262,7 @@ class VideoPlayer(QWidget):
         self.windows_combo_box = QComboBox()
         self.windows_combo_box.currentIndexChanged.connect(self.windowsComboxChanged)
 
-        # Create log area
+        # Create windows tagget log area
         self.logWindowsTagged = QTextEdit()
         self.logWindowsTagged.setReadOnly(True)
         self.logWindowsTagged.setLineWrapMode(QTextEdit.WidgetWidth)
@@ -501,7 +501,7 @@ class VideoPlayer(QWidget):
             current_windows = int(self.windows_combo_box.currentText())
 
 
-            tag_data["interval_seconds"] = {"start": self.windows[current_windows][0], "end": self.windows[current_windows][1]}
+            #tag_data["interval_seconds"] = {"start": self.windows[current_windows][0], "end": self.windows[current_windows][1]}
 
             if current_windows in self.listOftaggedWindows:         # if an annotation for the windows already exists
                 msg = "An anottation was already given to this window of data for the '" \
@@ -549,7 +549,7 @@ class VideoPlayer(QWidget):
                 self.previousDWindowButton.setEnabled(True)
                 self.nexstDWindowButton.setEnabled(True)
 
-            millis = self.windows[curr][0]*1000
+            millis = self.windows_begin_end_times[curr][0] * 1000
             self.updateSliderPosition(millis)
 
     #Listens to the change in the overlap dropdown list
@@ -563,18 +563,18 @@ class VideoPlayer(QWidget):
         logger.info("Image topic defaulted to: " + self.current_image_topic)
 
     def loadOutputFiles(self):
+        self.data["sources"] = []
         for t_name in self.label_group_boxes.keys():
             t_details = {}
             t_details["tags"] = [[] for n in range(self.number_of_windows)]             # the tag you give for the window
-            headers = tuple([label for label in self.tabs_labels[t_name].keys()] + ["interval_seconds"])
-            t_details["labels"] =  headers #how the feature is called
-            t_details["win_size"] = self.wsize_value
-            t_details["overlap"] = self.w_overlap_value
-            t_details["number_windows"] = self.number_of_windows
-            t_details["image_topic"] = self.current_image_topic
-            t_details["duration"] = self.duration
-            t_details["topics"] = {}
+            t_details["labels"] =  tuple([label for label in self.tabs_labels[t_name].keys()]) #how the feature is called
+            self.data["sources"].append(t_name)
             self.data[t_name] = t_details
+        self.data["win_size"] = self.wsize_value
+        self.data["overlap"] = self.w_overlap_value
+        self.data["number_windows"] = self.number_of_windows
+        self.data["duration"] = self.duration
+        self.data["used_image_topic"] = self.current_image_topic
 
     def reload(self):
         """Checks saved work before reseting."""
@@ -634,15 +634,17 @@ class VideoPlayer(QWidget):
             self.win_phase = self.wsize_value           #TODO: is there a better way to have 0 overlap?ssss
         counter = 0.0
 
-        self.windows = []
+        self.windows_begin_end_times = []
         while (counter < self.time_buff_secs[-1] and counter+self.wsize_value < self.time_buff_secs[-1]):
-            self.windows.append((counter, counter+self.wsize_value))     #Tuple-0: Begining - Tuple-1:End
+            self.windows_begin_end_times.append((counter, counter + self.wsize_value))     #Tuple-0: Begining - Tuple-1:End
             counter += self.win_phase
-        logger.info("START_TIMES: " + str([self.windows[i][0] for i in range(len(self.windows))]))
-        logger.info("END_TIMES: " + str([self.windows[i][1] for i in range(len(self.windows))]))
-        logger.info("NUMBER OR WINDOWS: " + str(len(self.windows)))
+        logger.info("START_TIMES: " + str([self.windows_begin_end_times[i][0] for i in range(len(self.windows_begin_end_times))]))
+        logger.info("END_TIMES: " + str([self.windows_begin_end_times[i][1] for i in range(len(self.windows_begin_end_times))]))
+        logger.info("NUMBER OR WINDOWS: " + str(len(self.windows_begin_end_times)))
 
-        self.number_of_windows = len(self.windows)
+        self.data["windows_interval"] = self.windows_begin_end_times
+
+        self.number_of_windows = len(self.windows_begin_end_times)
         self.listOftaggedWindows = []
         self.windows_combo_box.clear()
         for w in range(self.number_of_windows):
@@ -828,8 +830,8 @@ class VideoPlayer(QWidget):
         if self.current_begin_mismatch >= self.WINDOWS_MISMATCH_TOLERANCE:
             logger.error("BEGINNIG OUT OF THE WINDOW BEGIN BOUNDARY! IT MAY CAUSE LOSS OF DATA! CHECK TIME ALIGNMENT")
 
-        if float((position / 1000) % 60) >= self.windows[int(self.windows_combo_box.currentText())][1]:
-            stop_deviation = abs(float((position / 1000) % 60) - (self.windows[int(self.windows_combo_box.currentText())][1]))
+        if float((position / 1000) % 60) >= self.windows_begin_end_times[int(self.windows_combo_box.currentText())][1]:
+            stop_deviation = abs(float((position / 1000) % 60) - (self.windows_begin_end_times[int(self.windows_combo_box.currentText())][1]))
             if stop_deviation >= self.WINDOWS_MISMATCH_TOLERANCE:
                 logger.error("ENDING OUT OF THE WINDOW END BOUNDARY! IT MAY CAUSE LOSS OF DATA! CHECK TIME ALIGNMENT")
             else:
@@ -838,11 +840,11 @@ class VideoPlayer(QWidget):
                             str(self.current_begin_mismatch)+"secs\tAt_end: " +str(stop_deviation)+'secs <-- OK')
 
             self.current_begin_mismatch = -1
-            millis = self.windows[int(self.windows_combo_box.currentText())][0] * 1000
+            millis = self.windows_begin_end_times[int(self.windows_combo_box.currentText())][0] * 1000
             self.updateSliderPosition(millis)
 
         elif self.current_begin_mismatch == -1:
-            self.current_begin_mismatch = abs(float((position / 1000) % 60) - (self.windows[int(self.windows_combo_box.currentText())][0]))
+            self.current_begin_mismatch = abs(float((position / 1000) % 60) - (self.windows_begin_end_times[int(self.windows_combo_box.currentText())][0]))
 
         self.positionSlider.setValue(position)
 

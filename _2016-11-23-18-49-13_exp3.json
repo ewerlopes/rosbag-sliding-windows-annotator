@@ -1,40 +1,42 @@
 {
     "Player": {
-        "duration": 20.991719, 
-        "image_topic": "/ext_usb_camera/image/compressed", 
         "labels": [
             "Control", 
             "High_level", 
             "Expectation", 
-            "Activity", 
-            "interval_seconds"
+            "Activity"
         ], 
-        "number_windows": 12, 
-        "overlap": 50, 
         "tags": [
             [
                 "Very low", 
                 "Dodging", 
                 "Very low", 
-                "Very Low", 
-                {
-                    "end": 3.0, 
-                    "start": 0.0
-                }
+                "Very Low"
             ], 
             [
                 "Very low", 
                 "Dodging", 
                 "Very low", 
-                "Very Low", 
-                {
-                    "end": 4.5, 
-                    "start": 1.5
-                }
+                "Very Low"
             ], 
-            [], 
-            [], 
-            [], 
+            [
+                "Very low", 
+                "Blocking", 
+                "Medium", 
+                "Very high"
+            ], 
+            [
+                "Medium", 
+                "Inactive", 
+                "Low", 
+                "Very high"
+            ], 
+            [
+                "Medium", 
+                "Inactive", 
+                "Low", 
+                "Medium"
+            ], 
             [], 
             [], 
             [], 
@@ -42,10 +44,14 @@
             [], 
             [], 
             []
-        ], 
-        "topics": {}, 
-        "win_size": 3
+        ]
     }, 
+    "duration": 20.991719, 
+    "number_windows": 12, 
+    "overlap": 50, 
+    "sources": [
+        "Player"
+    ], 
     "topics": {
         "robogame_imu_sensor/imu_state": {
             "gyro": {
@@ -65,5 +71,57 @@
             "distance": [], 
             "proximity": []
         }
-    }
+    }, 
+    "used_image_topic": "/ext_usb_camera/image/compressed", 
+    "win_size": 3, 
+    "windows_interval": [
+        [
+            0.0, 
+            3.0
+        ], 
+        [
+            1.5, 
+            4.5
+        ], 
+        [
+            3.0, 
+            6.0
+        ], 
+        [
+            4.5, 
+            7.5
+        ], 
+        [
+            6.0, 
+            9.0
+        ], 
+        [
+            7.5, 
+            10.5
+        ], 
+        [
+            9.0, 
+            12.0
+        ], 
+        [
+            10.5, 
+            13.5
+        ], 
+        [
+            12.0, 
+            15.0
+        ], 
+        [
+            13.5, 
+            16.5
+        ], 
+        [
+            15.0, 
+            18.0
+        ], 
+        [
+            16.5, 
+            19.5
+        ]
+    ]
 }
