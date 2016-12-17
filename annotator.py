@@ -187,6 +187,8 @@ class VideoPlayer(QWidget):
         self.filename = ''
         self.isUnsave = True
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.VideoSurface)
+        self.WINDOWS_MISMATCH_TOLERANCE = 0.01      #tolerance for mismatch in the windows endpoint.
+        self.current_begin_mismatch = -1
 
         # the jason config data for setting labels
         self.label_configs = self.parseConfig()
@@ -199,22 +201,22 @@ class VideoPlayer(QWidget):
         self.openButton.clicked.connect(self.openFile)
         self.importCsv.clicked.connect(self.openCsv)
 
-        self.playButton = QPushButton()
+        self.playButton = QPushButton("Play")
         self.playButton.setEnabled(False)
         self.playButton.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
         self.playButton.clicked.connect(self.play)
 
-        self.nexstDWindowButton = QPushButton()
+        self.nexstDWindowButton = QPushButton("Next")
         self.nexstDWindowButton.setEnabled(False)
         self.nexstDWindowButton.setIcon(self.style().standardIcon(QStyle.SP_MediaSkipForward))
         self.nexstDWindowButton.clicked.connect(self.moveWindowForward)
 
-        self.previousDWindowButton = QPushButton()
+        self.previousDWindowButton = QPushButton("Previous")
         self.previousDWindowButton.setEnabled(False)
         self.previousDWindowButton.setIcon(self.style().standardIcon(QStyle.SP_MediaSkipBackward))
         self.previousDWindowButton.clicked.connect(self.moveWindowBackward)
 
-        self.reloadButton = QPushButton("Load")
+        self.reloadButton = QPushButton("Reload")
         self.reloadButton.setEnabled(False)
         self.reloadButton.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
         self.reloadButton.clicked.connect(self.reload)
@@ -316,13 +318,13 @@ class VideoPlayer(QWidget):
         self.control_button_layout1.addWidget(self.saveButton)
         #self.control_button_layout1.addWidget(self.importCsv)
         self.control_button_layout1.addWidget(self.reloadButton)
-        self.control_button_layout1.addWidget(self.previousDWindowButton)
-        self.control_button_layout1.addWidget(self.playButton)
-        self.control_button_layout1.addWidget(self.nexstDWindowButton)
-        self.control_button_layout1.addWidget(self.windows_combo_label)
-        self.control_button_layout1.addWidget(self.windows_combo_box)
         self.control_button_layout1.addWidget(self.positionSlider)
         self.control_button_layout1.addWidget(self.duration_label)
+        self.control_button_layout2.addWidget(self.previousDWindowButton)
+        self.control_button_layout2.addWidget(self.playButton)
+        self.control_button_layout2.addWidget(self.nexstDWindowButton)
+        self.control_button_layout2.addWidget(self.windows_combo_label)
+        self.control_button_layout2.addWidget(self.windows_combo_box)
         self.control_button_layout2.addWidget(self.topics_combo_label)
         self.control_button_layout2.addWidget(self.topics_combo_box)
         self.control_button_layout2.addWidget(self.winsize_spinbox_label)
@@ -336,11 +338,6 @@ class VideoPlayer(QWidget):
         self.control_button_layout4.addWidget(self.logOutput_label)
         self.control_button_layout4.addWidget(self.logOutput)
         self.controlEnabled = False
-
-
-        for t_name in self.tabs_labels.keys():
-            if len(self.tabs_labels[t_name]):
-                logger.debug(t_name)
 
         self.label_groupbox_style = " \
                         QGroupBox {\
@@ -493,9 +490,6 @@ class VideoPlayer(QWidget):
 
     #Print out the ID & text of the checked radio button
     def handleTag(self):
-        if not len(self.listOftaggedWindows):
-            self.topics_to_save = self.getTreeSelection(self.tree_of_topics.invisibleRootItem(),self.topics_to_save)
-            logger.debug(self.topics_to_save)
 
         for t_name in self.label_group_boxes.keys():
             tag_data = {}
@@ -515,7 +509,7 @@ class VideoPlayer(QWidget):
                 reply = QMessageBox.question(self, 'Confirm Overwrite',msg, QMessageBox.Yes, QMessageBox.No)
                 if reply == QMessageBox.Yes:
                     self.data[t_name]["tags"][current_windows] = [tag_data[l] for l in self.data[t_name]["labels"]]
-                    logger.info("Annotation for windows " + str(current_windows) + " was overwriten successfuly!")
+                    logger.info("ANNOTATION FOR WINDOWS " + str(current_windows) + " <- OVERWRITTEN!")
                     self.isUnsave = True
                     if not self.filename == "":
                         self.setWindowTitle('*' + self.filename + '-' + __file__)
@@ -532,7 +526,7 @@ class VideoPlayer(QWidget):
                     self.setWindowTitle('*' + self.filename + '-' + __file__)
                 else:
                     self.setWindowTitle('* UNTITLED ' + '-' + __file__)
-                logger.debug("Annotation for windows " + str(current_windows) + "done!")
+                logger.info("ANNOTATION FOR WINDOWS " + str(current_windows) + " <-- DONE!")
                 #self.csv_writers[t_name].writerows([tag_data])
                 #self.output_data_files[t_name].flush()
 
@@ -541,7 +535,7 @@ class VideoPlayer(QWidget):
     # processes the change in spinner windowsSize element
     def windowSizeChanged(self):
         self.wsize_value = self.windowSize_spinBox.value()
-        logger.info("Windows size set to:" + str(self.windowSize_spinBox.value()))
+        logger.info("Windows size set to: " + str(self.windowSize_spinBox.value()))
 
     def windowsComboxChanged(self):
         curr = self.windows_combo_box.currentText()
@@ -557,7 +551,6 @@ class VideoPlayer(QWidget):
 
             millis = self.windows[curr][0]*1000
             self.updateSliderPosition(millis)
-        logger.debug("Changed to new window")
 
     #Listens to the change in the overlap dropdown list
     def overlapComboxChanged(self, i):
@@ -584,7 +577,7 @@ class VideoPlayer(QWidget):
 
     def reload(self):
         """Checks saved work before reseting."""
-        if not len(self.listOftaggedWindows) and self.isUnsave:
+        if self.isUnsave and len(self.listOftaggedWindows)!=0:
             quit_msg = "Current work not saved. Do you want to proceed? DATA MAY BE LOST!"
             reply = QMessageBox.question(self, 'Risk of data loss',
                                          quit_msg, QMessageBox.Yes, QMessageBox.No)
@@ -644,9 +637,9 @@ class VideoPlayer(QWidget):
         while (counter < self.time_buff_secs[-1] and counter+self.wsize_value < self.time_buff_secs[-1]):
             self.windows.append((counter, counter+self.wsize_value))     #Tuple-0: Begining - Tuple-1:End
             counter += self.win_phase
-        logger.info("B: " + str([self.windows[i][0] for i in range(len(self.windows))]))
-        logger.info("E: " + str([self.windows[i][1] for i in range(len(self.windows))]))
-        logger.info("Size: " + str(len(self.windows)))
+        logger.info("START_TIMES: " + str([self.windows[i][0] for i in range(len(self.windows))]))
+        logger.info("END_TIMES: " + str([self.windows[i][1] for i in range(len(self.windows))]))
+        logger.info("NUMBER OR WINDOWS: " + str(len(self.windows)))
 
         self.number_of_windows = len(self.windows)
         self.listOftaggedWindows = []
@@ -660,8 +653,7 @@ class VideoPlayer(QWidget):
         for t_name in self.label_group_boxes.keys():
             self.output_data_files[t_name] = open(t_name + ".csv", 'wa')
             self.csv_writers[t_name] = csv.DictWriter(self.output_data_files[t_name], self.data[t_name]["labels"])
-            self.csv_writers[t_name].writeheader()
-            logger.debug("CsVHeaders: " + str(self.data[t_name]["labels"]))
+            #self.csv_writers[t_name].writeheader()
 
         self.logWindowsTagged.setText(str(self.listOftaggedWindows))
         self.topics_to_save = {}
@@ -669,7 +661,6 @@ class VideoPlayer(QWidget):
 
     def loadImageTopic(self, topic_name):
         (imageBuffer, self.time_buff_secs) = self.buffer_data(self.bag, image_topic=topic_name)
-        logger.warn(self.time_buff_secs)
         self.process_windows()
         fourcc = cv2.VideoWriter_fourcc('X', 'V' ,'I', 'D')
         height, width, bytesPerComponent = imageBuffer[0].shape
@@ -731,14 +722,12 @@ class VideoPlayer(QWidget):
         dictionary = {}
         for k in self.bag_buffers.keys():
             if k not in self.compressedImageTopics:
-                logger.debug(10*'-'+' ' +k)
                 if not self.bag_buffers[k]["msg"][0]._type in self.types:
                     self.types[self.bag_buffers[k]["msg"][0]._type] = self.makeTopicDictionary(self.bag_buffers[k]["msg"][0],dictionary)
                     dictionary = {}
 
-        #self.addToTree(self.tree_of_topics, self.dat)
         self.addToTree(self.tree_of_topics,self.types)
-        logger.debug(json.dumps(self.types, indent=4, sort_keys=True))
+        #logger.debug(json.dumps(self.types, indent=4, sort_keys=True))
         return img_buff, img_time_buff_secs
 
     def isPrimitive(self,obj):
@@ -834,14 +823,25 @@ class VideoPlayer(QWidget):
 
     def positionChanged(self, position):
         self.duration_label.setText(str((int)((position / 1000) / 60)).zfill(2) + ":" + str((int)(position / 1000) % 60).zfill(2))
+        if self.current_begin_mismatch >= self.WINDOWS_MISMATCH_TOLERANCE:
+            logger.error("BEGINNIG OUT OF THE WINDOW BEGIN BOUNDARY! IT MAY CAUSE LOSS OF DATA! CHECK TIME ALIGNMENT")
+
         if float((position / 1000) % 60) >= self.windows[int(self.windows_combo_box.currentText())][1]:
-            #logger.debug("BegW: " + str(self.windows[int(self.windows_combo_box.currentText())][0]))
-            #logger.debug("EndW: " + str(self.windows[int(self.windows_combo_box.currentText())][1]))
-            #logger.debug("CurEnd:" + str(float((position / 1000) % 60)))
-            #logger.debug(40*'%')
+            stop_deviation = abs(float((position / 1000) % 60) - (self.windows[int(self.windows_combo_box.currentText())][1]))
+            if stop_deviation >= self.WINDOWS_MISMATCH_TOLERANCE:
+                logger.error("ENDING OUT OF THE WINDOW END BOUNDARY! IT MAY CAUSE LOSS OF DATA! CHECK TIME ALIGNMENT")
+            else:
+                logger.info("SLIDING DEVIATION SUMMARY (WIN#"+self.windows_combo_box.currentText()+" TOLERANCE OF "
+                            + str(self.WINDOWS_MISMATCH_TOLERANCE)+"secs) At_start: "+
+                            str(self.current_begin_mismatch)+"secs\tAt_end: " +str(stop_deviation)+'secs <-- OK')
+
+            self.current_begin_mismatch = -1
             millis = self.windows[int(self.windows_combo_box.currentText())][0] * 1000
             self.updateSliderPosition(millis)
-        #else: logger.debug("Cur:" + str(float((position / 1000) % 60)))
+
+        elif self.current_begin_mismatch == -1:
+            self.current_begin_mismatch = abs(float((position / 1000) % 60) - (self.windows[int(self.windows_combo_box.currentText())][0]))
+
         self.positionSlider.setValue(position)
 
     def keyPressEvent(self,event):
@@ -869,7 +869,6 @@ class VideoPlayer(QWidget):
         insertedName = QFileDialog.getSaveFileName(self, 'Save File', defaultdir+"/"+defaultname, filter='*.json')
         if insertedName[0] != '':
             self.filename = insertedName[0]
-            logger.debug(self.filename)
             with open(self.filename, "w") as save_file:
                 json.dump(self.data, save_file, indent=4, sort_keys=True)
             self.isUnsave = False
@@ -901,7 +900,7 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     player = VideoPlayer()
-    player.resize(1340,1500)
+    player.resize(1340, QApplication.desktop().screenGeometry().height())
     player.show()
 
     sys.exit(app.exec_())
