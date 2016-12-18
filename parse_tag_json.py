@@ -9,6 +9,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from annotator_utils import *
+from collections import defaultdict
 
 ### logging setup #####
 logger = logging.getLogger(__name__)
@@ -28,7 +29,9 @@ class AnnotationParser(QWidget):
         self.bag = ''
         self.annotationDictionary = {}     # Topics present on the annotated file.
         self.topicSelection = {}           # This loads the type of objects in the treeviewer. Used for saying which topic to save.
-        self.topicSelectionON = {}         # holds which items in the tree of topics is ON
+        self.topicSelectionON = defaultdict(list)         # holds which items in the tree of topics is ON
+        self.toFileMap        = {}
+        self.topicSelectionONHeaders = []
         self.annotationFileName = ''
         self.windowsInterval = []          # stores the start and end times for the windows.
         self.bagFileName = ''
@@ -163,15 +166,16 @@ class AnnotationParser(QWidget):
                                                           self.topicSelection))
         for k,v in self.topicSelection.iteritems():
             if v == "ON":
-                selectionParts = k.split("")
+                selectionParts = k.split(".")
                 featureName = selectionParts[0]
-                if self.topicSelection[features]
-                self.topicSelectionON[featureName].append("".join(selectionParts[1:]))
-
+                self.topicSelectionON[featureName].append(".".join(selectionParts[1:]))
+                self.topicSelectionONHeaders.append(k)
 
         logger.info("Tree selection: \n" + json.dumps(self.topicSelection, indent=4, sort_keys=True))
         logger.debug("Selected (ON): "+ json.dumps(self.topicSelectionON,
                                                    indent=4, sort_keys=True))
+        logger.debug("Selected (ON) Headers: " + json.dumps(self.topicSelectionONHeaders,
+                                                    indent=4, sort_keys=True))
 
     def treeHasItemSelected(self):
         hasOne = False
@@ -366,47 +370,63 @@ class AnnotationParser(QWidget):
                                         logger.debug("NONE!!!!")
                                     logger.debug("Row: "+ str(row))
                                     buffer.append(row)
-                        self.csv_writers[s_name].writerows(buffer)
-                        self.csv_writers[s_name].writerows([{}])
-                        self.output_data_files[s_name].flush()
+                                    self.csv_writers[s_name].writerows(buffer)
+                                    self.csv_writers[s_name].writerows([{}])
+                                    self.output_data_files[s_name].flush()
         except Exception as e:
             logger.error(traceback.format_exc())
 
     def printDataToFile(self):
         try:
+            control_counter = {}
             t_time_buffer_sizes = {}
-            for t_name in [top["topic"] for top in self.bag_topics]:
-                t_time_buffer_sizes[t_name] = len(self.bag_data[t_name]["time_buffer_secs"])
+            for t_name in [top["topic"] for top in self.bag_topics ]:
+                if t_name in self.topicSelectionON.keys():
+                    t_time_buffer_sizes[t_name] = len(self.bag_data[t_name]["time_buffer_secs"])
+                    control_counter[t_name] = 0
+                    logger.debug("Lenght:"+ json.dumps(t_time_buffer_sizes[t_name], indent=4))
 
             for s_name in self.annotationDictionary["sources"]:
                 for t,w in enumerate(self.windowsInterval):
+                    logger.debug(20* "*" + ' ' + str(t))
                     if self.annotationDictionary[s_name]["tags"][t] == []:
-                        self.csv_writers[s_name].writerows([{}])
+                        for m in self.topicSelectionONHeaders:
+                            self.csv_writers[s_name][m].writerows([{}])
+                            self.output_data_files[s_name][m].flush()
                     else:
                         start = w[0]
                         end = w[1]
                         buffer = []
                         index_s = 0
-                        row = copy.copy(self.annotationDictionary[s_name]["tags"][t])
                         for topic, tBufferSize in t_time_buffer_sizes.iteritems():
                             for index in range(tBufferSize):
                                 if self.bag_data[topic]["time_buffer_secs"][index] >= start:
                                     index_s = index
                                     break
-                            for j in range(index_s,(tBufferSize-index_s)):
+                            for j in range(index_s,tBufferSize):
                                 if self.bag_data[topic]["time_buffer_secs"][j] <= end:
-                                    logger.debug("TAG: " + str(self.annotationDictionary[s_name]["tags"][t]))
-                                    logger.debug("Copy: "+ str(row))
-                                    logger.debug("ITEM: "+ topic)
-                                    logger.debug("Command: " + self.topicSelectionON[topic])
-                                    row[topic] = getattr(self.bag_data[topic]["msg"][j],self.topicSelectionON[topic])
-                                    if row[topic] == None:
-                                        logger.debug("NONE!!!!")
-                                    logger.debug("Row: "+ str(row))
-                                    buffer.append(row)
-                            self.csv_writers[s_name].writerows(buffer)
-                            self.csv_writers[s_name].writerows([{}])
-                            self.output_data_files[s_name].flush()
+                                    logger.debug(20 * "+")
+                                    for m in self.topicSelectionON[topic]:
+                                        row = copy.copy(self.annotationDictionary[s_name]["tags"][t])
+                                        featureName = topic+"."+m
+                                        logger.debug("Topic: " + topic)
+                                        logger.debug("Command: " + featureName)
+                                        row[featureName] = getattr(self.bag_data[topic]["msg"][j],m)
+                                        logger.debug(row[featureName])
+                                        if row[featureName] == None:
+                                            logger.debug("NONE!!!!")
+                                        #buffer.append(row)
+                                        self.csv_writers[s_name][featureName].writerows([row])
+                                        control_counter[topic] += 1
+                            #Print a blank line demarking and of window
+                            for m in self.topicSelectionON[topic]:
+                                featureName = topic + "." + m
+                                self.csv_writers[s_name][featureName].writerows([{}])
+                                self.output_data_files[s_name][featureName].flush()
+
+            # for t_name in [top["topic"] for top in self.bag_topics]:
+            #     if t_name in self.topicSelectionON.keys():
+            #         assert(control_counter[t_name]==t_time_buffer_sizes[t_name])
         except Exception as e:
             logger.error(traceback.format_exc())
 
@@ -427,12 +447,25 @@ class AnnotationParser(QWidget):
                     self.saveTextArea.setText(filename)
 
                 for s_name in self.annotationDictionary["sources"]:
-                    self.output_data_files[s_name] = open(filename+"_"+s_name + ".csv", 'wa')
-                    self.csv_writers[s_name] = csv.DictWriter(self.output_data_files[s_name],
-                                                              self.annotationDictionary[s_name]["labels"]+
-                                                              self.topicSelectionON)
-                    self.csv_writers[s_name].writeheader()
-                    self.output_data_files[s_name].flush()
+                    self.output_data_files[s_name] = {}
+                    self.csv_writers[s_name]       = {}
+                    for selected in self.topicSelectionONHeaders:
+                        sel_file_name = selected.split("/")
+                        sel_file_name = "_".join(sel_file_name)
+                        logger.debug(sel_file_name)
+                        try:
+
+                            self.output_data_files[s_name][selected] = open(filename+"_"+
+                                                                                 sel_file_name +
+                                                                                 ".csv", 'wa')
+                            self.csv_writers[s_name][selected] = csv.DictWriter(self.output_data_files[s_name][selected],
+                                                                        self.annotationDictionary[s_name]["labels"]+
+                                                                        [selected])
+                            self.csv_writers[s_name][selected].writeheader()
+                            self.output_data_files[s_name][selected].flush()
+                        except Exception as e:
+                            logger.error(traceback.format_exc())
+
 
                 self.printDataToFile()
 
