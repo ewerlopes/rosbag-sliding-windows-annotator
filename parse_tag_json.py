@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import json
+import copy
 import rosbag
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -24,12 +25,18 @@ class AnnotationParser(QWidget):
 
         # the jason config data for setting labels
         self.bag = ''
-        self.annotationDictionary = {}        # Topics present on the annotated file.
-        self.topicSelection = {}          # This loads the type of objects in the treeviewer. Used for saying which topic to save.
+        self.annotationDictionary = {}     # Topics present on the annotated file.
+        self.topicSelection = {}           # This loads the type of objects in the treeviewer. Used for saying which topic to save.
+        self.topicSelectionON = []         # holds which items in the tree of topics is ON
         self.annotationFileName = ''
+        self.windowsInterval = []          # stores the start and end times for the windows.
         self.bagFileName = ''
         self.isAnnotationReady = False
         self.isBagReady = False
+        self.bag_topics = {}               # topics as extracted from the bag info.
+        self.bag_data   = {}               # as a list extracted from the bag_topics
+        self.csv_writers = {}              # the csv file objects
+        self.output_data_files = {}        # the data file names.
 
 
         # Create Push Buttons
@@ -55,12 +62,19 @@ class AnnotationParser(QWidget):
 
         # Create a labels
         self.logOutput_label = QLabel("Log area:")
+        self.save_label = QLabel("Saving to:")
 
         # Create text area for files loaded.
         self.bagFileTextArea = QTextEdit()
         self.bagFileTextArea.setReadOnly(True)
         self.bagFileTextArea.setLineWrapMode(QTextEdit.NoWrap)
         self.bagFileTextArea.setMaximumHeight(50)
+
+        # Save text area
+        self.saveTextArea = QTextEdit()
+        self.saveTextArea.setReadOnly(True)
+        self.saveTextArea.setLineWrapMode(QTextEdit.NoWrap)
+        self.saveTextArea.setMaximumHeight(50)
 
         # Create log area
         self.annotationFileTextArea = QTextEdit()
@@ -97,10 +111,13 @@ class AnnotationParser(QWidget):
         self.control_layout1.addWidget(self.bagFileTextArea)
         self.control_layout2.addWidget(self.loadTagJsonButton)
         self.control_layout2.addWidget(self.annotationFileTextArea)
+
         body_layout.addLayout(self.control_layout1)
         body_layout.addLayout(self.control_layout2)
         body_layout.addWidget(self.tree_of_topics)
         body_layout.addWidget(self.saveButton)
+        body_layout.addWidget(self.save_label)
+        body_layout.addWidget(self.saveTextArea)
         body_layout.addWidget(self.logOutput_label)
         body_layout.addWidget(self.logOutput)
         self.setLayout(body_layout)
@@ -143,7 +160,12 @@ class AnnotationParser(QWidget):
         self.topicSelection = self._flatten_dict(
                                     self._getTreeSelection(self.tree_of_topics.invisibleRootItem(),
                                                           self.topicSelection))
-        logger.debug(json.dumps(self.topicSelection, indent=4, sort_keys=True))
+        for k,v in self.topicSelection.iteritems():
+            if v == "ON":
+                self.topicSelectionON.append(k)
+
+        logger.info("Tree selection: \n" + json.dumps(self.topicSelection, indent=4, sort_keys=True))
+        logger.debug(json.dumps(self.topicSelectionON, indent=4, sort_keys=True))
 
     def treeHasItemSelected(self):
         hasOne = False
@@ -163,33 +185,47 @@ class AnnotationParser(QWidget):
             try:
                 self.annotationDictionary = self.parseJson(self.annotationFileName)
                 self.annotationFileTextArea.setText(self.annotationFileName)
-                newTitle = self.annotationFileName[:-5].split("/")[-1] + " - " + __file__
                 self.addToTree(self.tree_of_topics, self.annotationDictionary["topics"])
             except:
-                self.errorMessages(0)
+                self.errorMessages(5)
 
             if self.mustCheckCompatibility():
                 if self.areFileCompatible():
-                    self.loadWindowsTime()
-                    self.isAnnotationReady = True
-                    # if self.isEnableSave():   #TODO: Fix this for both open methods
-                    self.saveButton.setEnabled(True)
+                    self._setAnnotationFlags()
                 else:
                     self.errorMessages(1)
                     logger.error("Could not load" + self.annotationFileName + " annotation file! "
                                  "Reason: bag is incompatible with the given annotation file.")
                     self.annotationFileName = ''
             else:
-                self.loadWindowsTime()
-                self.isAnnotationReady = True
-                # if self.isEnableSave():   #TODO: Fix this for both open methods
-                self.saveButton.setEnabled(True)
+                self._setAnnotationFlags()
 
 
+    def _setAnnotationFlags(self):
+        self.loadWindowsTime()
+        self.isAnnotationReady = True
+        if self.isEnableSave():
+            self.saveButton.setEnabled(True)
+
+    def _setBagFlags(self):
+        self.bagFileTextArea.setText(self.bagFileName)
+        self.isBagReady = True
+        if self.isEnableSave():
+            self.saveButton.setEnabled(True)
 
     def loadWindowsTime(self):
-        for key in self.annotationDictionary["window_interval"]:
-            self.windowInterval
+        str_buffer = ["\nLOADED WINDOWS INTERVAL"]
+        for i,w in enumerate(self.annotationDictionary["windows_interval"]):
+            self.windowsInterval.append((w[0],w[1]))
+            str_buffer.append("\t#"+str(i)+" - Start: " + str(w[0]) + "secs\t|\tEnd:" + str(w[1]) + "secs")
+        total_bag_time = self.annotationDictionary["duration"]
+        total_win_time = self.annotationDictionary["windows_interval"]                                      \
+                                                  [len(self.annotationDictionary["windows_interval"])-1]    \
+                                                  [1]
+        str_buffer.append("TOTAL BAG DURATION: "+ str(total_bag_time))
+        str_buffer.append("TOTAL WINDOWING TIME: "+str(total_win_time))
+        str_buffer.append("TIME NOT USED: " + str(float((total_bag_time)-float(total_win_time))))
+        logger.info("\n".join(str_buffer))
 
 
     def openBagFile(self):
@@ -197,24 +233,33 @@ class AnnotationParser(QWidget):
         if self.bagFileName != '':
             try:
                 self.bag = rosbag.Bag(self.bagFileName)
-            except:
-                self.errorMessages(0)
+                info_dict = yaml.load(self.bag._get_yaml_info())
+                self.bag_topics = info_dict['topics']
 
+                string_buffer = []
+                string_buffer.append("\nTOPICS FOUND:\n")
+                # TODO: try catch the case where there's no topics, currently a potential fatal error.
+                for top in self.bag_topics:
+                    string_buffer.append("\t- " + top["topic"] + "\n\t\t-Type: " +
+                                         top["type"] + "\n\t\t-Fps: " + str(top["frequency"]))
+
+                logger.info("\n".join(string_buffer))
+            except Exception,e:
+                self.errorMessages(4)
+                logger.error(str(e))
             if self.mustCheckCompatibility():
                 if self.areFileCompatible():
-                    self.bagFileTextArea.setText(self.bagFileName)
-                    self.isBagReady = True
-                    # if self.isEnableSave():   #TODO: uncomment this when able to save
-                    #     self.saveButton.setEnabled(True)
+                    self._setBagFlags()
                 else:
                     self.errorMessages(0)
                     logger.error("Could not load" + self.bagFileName +" the bag file! "
                                  "Reason: bag is incompatible with the given annotation file.")
                     self.bagFileName = ''
+                    self.bag = ''
+                    self.bag_data = ''
+                    self.bag_topics = ''
             else:
-                self.bagFileTextArea.setText(self.bagFileName)
-                self.isBagReady = True
-
+                self._setBagFlags()
 
     def mustCheckCompatibility(self):
         if self.isBagReady and self.isAnnotationReady:
@@ -224,50 +269,39 @@ class AnnotationParser(QWidget):
     def areFileCompatible(self):
         """Checks if the jason file cam be used in the current loaded bag. In other words,
         whether it has the topics the jason file lists under the key 'topics'"""
-        info_dict = yaml.load(self.bag._get_yaml_info())
-        topics = info_dict['topics']
-
         bagOftopics = []
-        string_buffer = []
-        string_buffer.append("\nTOPICS FOUND:\n")
-        # TODO: try catch the case where there's no topics, currently a potential fatal error.
-        for top in topics["topics"]:
-                string_buffer.append("\t- " + top["topic"] + "\n\t\t-Type: " +
-                                     top["type"] + "\n\t\t-Fps: " + str(top["frequency"]))
-                string_buffer.append("BAG TOTAL DURATION: " + str(self.duration))
-                logger.info("\n".join(string_buffer))
-                bagOftopics.append(top["topic"])
-
         # Checking if the topic is compressed
         for d in self.annotationDictionary["topics"].keys():
-            if d not in bagOftopics:
+            if d not in [top["topic"] for top in self.bag_topics]:
                 return False
         return True
 
 
+    def getBagData(self):
+        self.bag_data = {}
 
-    def get_data(self):
-        img_buff = []
-        img_time_buff_secs = []
-        start_time = None
-        bridge = CvBridge()
-        self.bag_buffers = {}
-
-        for t_name in [top["topic"] for top in self.topics]:
-            self.bag_buffers[t_name] = {}
-            self.bag_buffers[t_name]["msg"] = []
-            self.bag_buffers[t_name]["s_time"] = None
-            self.bag_buffers[t_name]["time_buffer_secs"] = []
+        for t_name in [top["topic"] for top in self.bag_topics]:
+            self.bag_data[t_name] = {}
+            self.bag_data[t_name]["msg"] = []
+            self.bag_data[t_name]["s_time"] = None
+            self.bag_data[t_name]["time_buffer_secs"] = []
 
         # Buffer the images, timestamps from the rosbag
-        for topic, msg, t in self.bag.read_messages():  # topics=[input_topic]):
+        for topic, msg, t in self.bag.read_messages(topics=[top["topic"] for top in self.bag_topics]):
+            try:
+                if self.bag_data[topic]["s_time"] == None:
+                    self.bag_data[topic]["s_time"] = t
 
-            if self.bag_buffers[topic]["s_time"] is None:
-                self.bag_buffers[topic]["s_time"] = t
+
+                self.bag_data[topic]["msg"].append(msg)
+                self.bag_data[topic]["time_buffer_secs"].append(t.to_sec() -
+                                                                 self.bag_data[topic]["s_time"].to_sec())
+            except:
+                logger.debug("Error: " + topic)
 
 
-            self.bag_buffers[topic]["msg"].append(msg)
-            self.bag_buffers[topic]["time_buffer_secs"].append(t.to_sec() - self.bag_buffers[topic]["s_time"].to_sec())
+        #self.topicSelection
+        #logger.debug(json.dumps(self.bag_data, indent=4))
 
     def parseJson(self,filename):
         with open(filename) as json_file:
@@ -277,6 +311,7 @@ class AnnotationParser(QWidget):
     def errorMessages(self,index):
         msgBox = QMessageBox()
         msgBox.setIcon(QMessageBox.Critical)
+
         if index == 0:
             msgBox.setText("Error: It was not possible to load the bag file!"
                            "Reason: topic incompatibility.")
@@ -286,21 +321,63 @@ class AnnotationParser(QWidget):
         elif index == 2:
             msgBox.setText("Error: You must select the topics you are interested.")
         elif index == 3:
-            msgBox.setText("Error: You must load a bag file and/or an annotatio file!")
+            msgBox.setText("Error: You must load a bag file and/or an annotation file!")
+        elif index == 4:
+            msgBox.setText("Error: Error when opening the bag file!")
+        elif index == 5:
+            msgBox.setText("Error: Error when opening the annotation json file!")
         msgBox.resize(100,40)
         msgBox.exec_()
 
+    def printDataToFile(self):
+        try:
+            for s_name in self.annotationDictionary["sources"]:
+                for t in self.annotationDictionary[s_name]["tags"]:
+                    for item in self.topicSelectionON:
+                        topicList =  [item.split(".")]
+                        topic = topicList[0]
+                        for w in self.windowsInterval:
+                            start = w[0]
+                            end = w[1]
+                            buffer = []
+                            logger.debug("TBuffer: " + self.bag_data[topic]["time_buffer_secs"])
+                            for i in range(len(self.bag_data[topic]["time_buffer_secs"])):
+                                if self.bag_data[topic]["time_buffer_secs"][i] >= start:
+                                    break
+                            for j in range(i,len(self.bag_data[topic]["time_buffer_secs"]) - i):
+                                if self.bag_data[topic]["time_buffer_secs"][i] <= end:
+                                    row = copy.copy([self.annotationDictionary["tags"][t]])
+                                    row[item] = getattr(self.bag_data[topic]["msg"],"".join(topicList[1:]))
+
+                        self.csv_writers[s_name].writerows(buffer)
+                        self.csv_writers[s_name].writerows([{}])
+                        self.output_data_files[s_name].flush()
+        except Exception,e:
+            logger.error(str(e))
 
     def save(self):
+        self.processTreeOfTopics()
         if self.isEnableSave() and self.treeHasItemSelected():
-            self.processTreeOfTopics()
-            # defaultdir = os.path.dirname(os.path.abspath(__file__))
-            # defaultname = self.bagFileName.split("/")[-1][:-4] + ".csv"
-            # insertedName = QFileDialog.getSaveFileName(self, 'Save File', defaultdir + "/" + defaultname, filter='*.csv')
-            # if insertedName[0] != '':
-            #     with open(insertedName[0], "w") as save_file:
-            #         #json.dump(self.data, save_file, indent=4, sort_keys=True)
-            #         pass #TODO: CSV
+            self.getBagData()
+            defaultdir = os.path.dirname(os.path.abspath(__file__))
+            defaultname = self.bagFileName.split("/")[-1][:-4] + ".csv"
+            insertedName = QFileDialog.getSaveFileName(self, 'Save File', defaultdir + "/" + defaultname, filter='*.csv')
+            if insertedName[0] != '':
+                if insertedName[0].endswith(".csv"):
+                    filename = insertedName[0][:-4]
+                else:
+                    filename = insertedName[0]
+
+                self.saveTextArea.setText(filename)
+                for s_name in self.annotationDictionary["sources"]:
+                    self.output_data_files[s_name] = open(filename+"_"+s_name + ".csv", 'wa')
+                    self.csv_writers[s_name] = csv.DictWriter(self.output_data_files[s_name],
+                                                              self.annotationDictionary[s_name]["labels"]+self.topicSelectionON)
+                    self.csv_writers[s_name].writeheader()
+                    self.output_data_files[s_name].flush()
+
+                self.printDataToFile()
+
         elif not self.treeHasItemSelected():
             self.errorMessages(2)
         elif not self.isEnabled():

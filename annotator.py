@@ -484,10 +484,6 @@ class VideoPlayer(QWidget):
 
         return hasOneChecked
 
-    def updateLabelHeaders(self):
-        for t_name in self.label_group_boxes.keys():
-            self.data[t_name]["labels"] = self.data[t_name]["labels"] + tuple([l for l in self.topics_to_save.keys()])
-
     #Print out the ID & text of the checked radio button
     def handleTag(self):
 
@@ -501,7 +497,7 @@ class VideoPlayer(QWidget):
             current_windows = int(self.windows_combo_box.currentText())
 
 
-            #tag_data["interval_seconds"] = {"start": self.windows[current_windows][0], "end": self.windows[current_windows][1]}
+            logger.debug(json.dumps(tag_data,indent=4))
 
             if current_windows in self.listOftaggedWindows:         # if an annotation for the windows already exists
                 msg = "An anottation was already given to this window of data for the '" \
@@ -518,7 +514,7 @@ class VideoPlayer(QWidget):
                     # self.csv_writers[t_name].writerows([tag_data])
                     # self.output_data_files[t_name].flush()
             else:
-                self.data[t_name]["tags"][current_windows] = [tag_data[l] for l in self.data[t_name]["labels"]]
+                self.data[t_name]["tags"][current_windows] = tag_data
                 self.listOftaggedWindows.append(current_windows)
                 self.listOftaggedWindows.sort()
                 self.isUnsave = True
@@ -624,7 +620,7 @@ class VideoPlayer(QWidget):
                     self.reloadButton.setEnabled(True)
                 else:
                     self.errorMessages(6)
-            self.isBagLoaded = True
+                self.isBagLoaded = True
             self.reset()
 
     def process_windows(self):
@@ -687,7 +683,6 @@ class VideoPlayer(QWidget):
     def buffer_data(self, bag, image_topic, compressed=True):
         img_buff = []
         img_time_buff_secs = []
-        start_time = None
         bridge = CvBridge()
         self.bag_buffers = {}
 
@@ -729,8 +724,15 @@ class VideoPlayer(QWidget):
                     self.types[self.bag_buffers[k]["msg"][0]._type] = self.makeTopicDictionary(self.bag_buffers[k]["msg"][0],dictionary)
                     dictionary = {}
 
-        self.data["topics"] = self.types
-        self.addToTree(self.tree_of_topics,self.types)
+
+        dictionary = {}
+        for top in self.topics:
+            for type in self.types.keys():
+                if top["type"] == type:
+                    dictionary[top["topic"]] = self.types[type]
+
+        self.data["topics"] = dictionary
+        self.addToTree(self.tree_of_topics,self.data["topics"])
         #logger.debug(json.dumps(self.types, indent=4, sort_keys=True))
         return img_buff, img_time_buff_secs
 

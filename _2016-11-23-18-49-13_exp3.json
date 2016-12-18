@@ -7,36 +7,31 @@
             "Activity"
         ], 
         "tags": [
-            [
-                "Very low", 
-                "Dodging", 
-                "Very low", 
-                "Very Low"
-            ], 
-            [
-                "Very low", 
-                "Dodging", 
-                "Very low", 
-                "Very Low"
-            ], 
-            [
-                "Very low", 
-                "Blocking", 
-                "Medium", 
-                "Very high"
-            ], 
-            [
-                "Medium", 
-                "Inactive", 
-                "Low", 
-                "Very high"
-            ], 
-            [
-                "Medium", 
-                "Inactive", 
-                "Low", 
-                "Medium"
-            ], 
+            {
+                "Activity": "Very Low", 
+                "Control": "Very low", 
+                "Expectation": "Very low", 
+                "High_level": "Dodging"
+            }, 
+            {
+                "Activity": "Very Low", 
+                "Control": "Very low", 
+                "Expectation": "Very low", 
+                "High_level": "Dodging"
+            }, 
+            {
+                "Activity": "Very Low", 
+                "Control": "Very low", 
+                "Expectation": "Very low", 
+                "High_level": "Dodging"
+            }, 
+            {
+                "Activity": "Very Low", 
+                "Control": "Very low", 
+                "Expectation": "Very low", 
+                "High_level": "Dodging"
+            }, 
+            [], 
             [], 
             [], 
             [], 
@@ -53,7 +48,12 @@
         "Player"
     ], 
     "topics": {
-        "robogame_imu_sensor/imu_state": {
+        "/kinect_features/": {
+            "ci": [], 
+            "distance": [], 
+            "proximity": []
+        }, 
+        "robogame/imu_state": {
             "gyro": {
                 "x": [], 
                 "y": [], 
@@ -65,11 +65,6 @@
                 "z": []
             }, 
             "q": []
-        }, 
-        "robogame_kinectfeatures_extractor/kinect_feat": {
-            "ci": [], 
-            "distance": [], 
-            "proximity": []
         }
     }, 
     "used_image_topic": "/ext_usb_camera/image/compressed", 
