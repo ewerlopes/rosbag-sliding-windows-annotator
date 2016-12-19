@@ -583,6 +583,9 @@ class VideoPlayer(QWidget):
         else:
             self.reset()
 
+    def bringTagBack(self):
+        pass
+
     def reset(self):
         """Unconditionally reset the environment"""
         self.windows_combo_box.clear()
@@ -891,7 +894,7 @@ class VideoPlayer(QWidget):
 
     def closeEvent(self,event):
         if self.isBagLoaded:
-            if self.listOftaggedWindows != self.number_of_windows:
+            if len(self.listOftaggedWindows) != self.number_of_windows:
                 quit_msg = "Some windows were NOT annotated. Are you sure you want to exit the program?"
                 reply = QMessageBox.question(self, 'Risk of data loss',
                                             quit_msg, QMessageBox.Yes, QMessageBox.No)
