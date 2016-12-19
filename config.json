@@ -3,7 +3,7 @@
                 "Activity": ["Very high","High","Medium","Low","Very low"],
                 "Expectation": ["Very high","High","Medium","Low","Very low"],
                 "Control": ["Very high","High","Medium","Low","Very low"],
-                "High_level": ["Dodging","Inactive","Blocking","Sprinting"]
+                "High_level": ["Sprinting","Moving", "Blocking", "Dodging","Inactive"]
                },
                
     "Robot": {}

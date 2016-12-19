@@ -511,8 +511,6 @@ class VideoPlayer(QWidget):
                         self.setWindowTitle('*' + self.filename + '-' + __file__)
                     else:
                         self.setWindowTitle('* UNTITLED '+ '-' + __file__)
-                    # self.csv_writers[t_name].writerows([tag_data])
-                    # self.output_data_files[t_name].flush()
             else:
                 self.data[t_name]["tags"][current_windows] = tag_data
                 self.listOftaggedWindows.append(current_windows)
@@ -523,8 +521,6 @@ class VideoPlayer(QWidget):
                 else:
                     self.setWindowTitle('* UNTITLED ' + '-' + __file__)
                 logger.info("ANNOTATION FOR WINDOWS " + str(current_windows) + " <-- DONE!")
-                #self.csv_writers[t_name].writerows([tag_data])
-                #self.output_data_files[t_name].flush()
 
         self.logWindowsTagged.setText(str(self.listOftaggedWindows))
 
@@ -650,12 +646,6 @@ class VideoPlayer(QWidget):
             self.windows_combo_box.addItem(str(w))
 
         self.loadOutputFiles()
-        self.output_data_files = {}
-        self.csv_writers = {}
-        for t_name in self.label_group_boxes.keys():
-            self.output_data_files[t_name] = open(t_name + ".csv", 'wa')
-            self.csv_writers[t_name] = csv.DictWriter(self.output_data_files[t_name], self.data[t_name]["labels"])
-            #self.csv_writers[t_name].writeheader()
 
         self.logWindowsTagged.setText(str(self.listOftaggedWindows))
         self.topics_to_save = {}
@@ -833,12 +823,14 @@ class VideoPlayer(QWidget):
     def positionChanged(self, position):
         self.duration_label.setText(str((int)((position / 1000) / 60)).zfill(2) + ":" + str((int)(position / 1000) % 60).zfill(2))
         if self.current_begin_mismatch >= self.WINDOWS_MISMATCH_TOLERANCE:
-            logger.error("BEGINNIG OUT OF THE WINDOW BEGIN BOUNDARY! IT MAY CAUSE LOSS OF DATA! CHECK TIME ALIGNMENT")
+            logger.error("STARTING OUT OF THE WINDOW START TIME! Deviation of: " + str(self.current_begin_mismatch) 
+                + " above the tolerance ("+ str(self.WINDOWS_MISMATCH_TOLERANCE)+ ")")
 
         if float(position / 1000) >= self.windows_begin_end_times[int(self.windows_combo_box.currentText())][1]:
             stop_deviation = abs(float(position / 1000) - self.windows_begin_end_times[int(self.windows_combo_box.currentText())][1])
             if stop_deviation >= self.WINDOWS_MISMATCH_TOLERANCE:
-                logger.error("ENDING OUT OF THE WINDOW END BOUNDARY! IT MAY CAUSE LOSS OF DATA! CHECK TIME ALIGNMENT")
+                logger.error("ENDING OUT OF THE WINDOW END BOUNDARY! Deviation of: " + str(stop_deviation) 
+                + " above the tolerance ("+ str(self.WINDOWS_MISMATCH_TOLERANCE)+ ")")
             else:
                 logger.info("SLIDING DEVIATION SUMMARY (WIN#"+self.windows_combo_box.currentText()+" TOLERANCE OF "
                             + str(self.WINDOWS_MISMATCH_TOLERANCE)+"secs) At_start: "+
