@@ -835,8 +835,8 @@ class VideoPlayer(QWidget):
         if self.current_begin_mismatch >= self.WINDOWS_MISMATCH_TOLERANCE:
             logger.error("BEGINNIG OUT OF THE WINDOW BEGIN BOUNDARY! IT MAY CAUSE LOSS OF DATA! CHECK TIME ALIGNMENT")
 
-        if float((position / 1000) % 60) >= self.windows_begin_end_times[int(self.windows_combo_box.currentText())][1]:
-            stop_deviation = abs(float((position / 1000) % 60) - (self.windows_begin_end_times[int(self.windows_combo_box.currentText())][1]))
+        if float(position / 1000) >= self.windows_begin_end_times[int(self.windows_combo_box.currentText())][1]:
+            stop_deviation = abs(float(position / 1000) - self.windows_begin_end_times[int(self.windows_combo_box.currentText())][1])
             if stop_deviation >= self.WINDOWS_MISMATCH_TOLERANCE:
                 logger.error("ENDING OUT OF THE WINDOW END BOUNDARY! IT MAY CAUSE LOSS OF DATA! CHECK TIME ALIGNMENT")
             else:
@@ -849,7 +849,7 @@ class VideoPlayer(QWidget):
             self.updateSliderPosition(millis)
 
         elif self.current_begin_mismatch == -1:
-            self.current_begin_mismatch = abs(float((position / 1000) % 60) - (self.windows_begin_end_times[int(self.windows_combo_box.currentText())][0]))
+            self.current_begin_mismatch = abs(float(position / 1000) - self.windows_begin_end_times[int(self.windows_combo_box.currentText())][0])
 
         self.positionSlider.setValue(position)
 
@@ -909,7 +909,7 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     player = VideoPlayer()
-    player.resize(1340, QApplication.desktop().screenGeometry().height())
+    player.resize(600, QApplication.desktop().screenGeometry().height())
     player.show()
 
     sys.exit(app.exec_())
