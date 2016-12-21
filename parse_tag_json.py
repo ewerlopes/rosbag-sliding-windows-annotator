@@ -276,15 +276,25 @@ class AnnotationParser(QWidget):
                 self._setBagFlags()
 
     def mustCheckCompatibility(self):
+        """A boolean method and return true if both the bag and the annotation jason files
+        had been loaded. Returns false otherwise. The idea of creating this function is to
+        avoid the use of repetitive checking condition in the code and to allow unordered
+        loading of the files. That is, it does not matter each one of the files had been
+         loaded first."""
         if self.isBagReady and self.isAnnotationReady:
             return True
         else: return False
 
     def areFileCompatible(self):
-        """Checks if the jason file cam be used in the current loaded bag. In other words,
-        whether it has the topics the jason file lists under the key 'topics'"""
-        bagOftopics = []
-        # Checking if the topic is compressed
+        """Checks if the jason file can be used in the current loaded bag. In other words,
+        whether it has the topics the jason file lists under the key 'topics'. Note that
+        if the bag file is different from the one the json file holds the tagged data, but
+        has the topics, this function is going to be positive to the compatibility. This is
+        a potential situation for error. In other words, it allows to use the json file
+        created from other bag in a totally different one, given that it has the listed bags."""
+
+        #loops through the list of topic names listed in the jason and returns false
+        # when it sees a topic that is not in the current loaded bag file.
         for d in self.annotationDictionary["topics"].keys():
             if d not in [top["topic"] for top in self.bag_topics]:
                 return False
@@ -292,9 +302,19 @@ class AnnotationParser(QWidget):
 
 
     def getBagData(self):
+        """Sets the bag_data dictionary with with the content of the
+        loaded bag.
+            self.bag_data[topicName]["msg"] : list of msgs in the bag for the
+                                              the given topic (topicName).
+            self.bag_data[topiName]["s_time"] : time of the first msg in the
+                                                bag for the given topic
+            self.bag_data[topicName]["time_buffer_secs"] : list of msg arrival times (in secs)
+                                                            for the given bag.
+        """
         self.bag_data = {}
 
         for t_name in [top["topic"] for top in self.bag_topics]:
+            # define msg structure. See method stringdoc.
             self.bag_data[t_name] = {}
             self.bag_data[t_name]["msg"] = []
             self.bag_data[t_name]["s_time"] = None
@@ -304,25 +324,24 @@ class AnnotationParser(QWidget):
         for topic, msg, t in self.bag.read_messages(topics=[top["topic"] for top in self.bag_topics]):
             try:
                 if self.bag_data[topic]["s_time"] == None:
-                    self.bag_data[topic]["s_time"] = t
+                    self.bag_data[topic]["s_time"] = t      # sets initial time for the topic s_time.
 
 
-                self.bag_data[topic]["msg"].append(msg)
+                self.bag_data[topic]["msg"].append(msg)             # append msg
+                # append second difference between the current time ant the s_time.
                 self.bag_data[topic]["time_buffer_secs"].append(t.to_sec() -
                                                                  self.bag_data[topic]["s_time"].to_sec())
             except:
                 logger.debug("Error: " + topic)
 
-
-        #self.topicSelection
-        #logger.debug(json.dumps(self.bag_data, indent=4))
-
     def parseJson(self,filename):
+        """Loads a json. Returns its content in a dictionary"""
         with open(filename) as json_file:
                 json_data = json.load(json_file)
         return json_data
 
     def errorMessages(self,index):
+        """Defines error messages via index parameter"""
         msgBox = QMessageBox()
         msgBox.setIcon(QMessageBox.Critical)
 
@@ -441,60 +460,106 @@ class AnnotationParser(QWidget):
 
     def _getMsgValue(self, dictionary, msg, parent, ignore = ["header"]):
         """Recursively saves in dictionary the msg values of the topics set on in the
-        tree."""
+        tree.
+            dictionary : a dictionary returned by the function where the key is the name of
+                         the topic, followed by its attribute names (all the way down to the
+                         primitive one) and the value is the rosbag topic field msg value.
+            msg:        the rosbag msg from which to extract the values.
+            parent  :   the topic name from which to search the value in the rosbag msg. note
+                        that it is common to have nested data types and so, the parent name is
+                        used in order to describe the level of the data topic structure the re-
+                        cursion is at. For example, a 6-DOF accelerometer data type may have
+                        different attributes, like "gyro" and "acc" each of which may have other
+                        attributes like "x","y","z".
+            ignore  :   the list of ignored attributes in the msg.
+        """
+        # if the current topic level has attributes (i.e., it is not a primitive time)
         if hasattr(type(msg), '__slots__'):
+            # loops through each attribute of this type
             for s in type(msg).__slots__:
+                # ignores attribute if it is in the ignore list.
                 if s in ignore:
                     continue
                 else:
+                    # get the attribute msg value.
                     val = msg.__getattribute__(s)
+                    # call the current method again to check if the val attribute value
+                    # has another attribute members.
                     dictionary = self._getMsgValue(dictionary, val, ".".join([parent, s]))
         else:
+            #if the msg is of a primitive type, set it to dictionary.
             dictionary[parent] = msg
 
         return dictionary
 
     def save(self):
-        """Opens a dialog windows and asks the general filenames
+        """Opens a dialog windows and asks the general filename
         used for saving the data. It generates as much files as those
-        defined in the json source field. In other words, one for each tab."""
+        defined in the json source field. In other words, one for each tab
+        (feature perspective) used for tagging the data."""
+
+        # Gets each topics were signed for saving.
         self.processTreeOfTopics()
+        #checks whether the user has loaded the bag and the jason file.
         if self.isEnableSave() and self.treeHasItemSelected():
+            # loads the bag file data in the self.bag_data dictionary variable.
             self.getBagData()
+            # defaults directory to the one where the parser program is located in
             defaultdir = os.path.dirname(os.path.abspath(__file__))
+            # defaults the name of the output file(s) to the name of the bag + "csv".
             defaultname = self.bagFileName.split("/")[-1][:-4] + ".csv"
+            # gets the name of the file from windows.
             insertedName = QFileDialog.getSaveFileName(self, 'Save File', defaultdir + "/"
                                                        + defaultname, filter='*.csv')
+            # does nothing in case the file name is empty (the user closed the save windows
+            # before pressing save button on it)
             if insertedName[0] != '':
+                ###### Process the filename
+                # removing .csv extension. This is done because we append to the file
+                # the name of the feature perpective (tab name in the annotator.py)
                 if insertedName[0].endswith(".csv"):
-                    filename = insertedName[0][:-4]
-                    self.saveTextArea.setText(filename)
+                    filename = insertedName[0][:-4]     #remove .csv
+                    self.saveTextArea.setText(filename) #set the "Saved to" text area
                 else:
+                    # keep the name as it is in case it has no csv extension
                     filename = insertedName[0]
+                    # set the "Saved to" text area
                     self.saveTextArea.setText(filename)
 
                 try:
+                    #variable that holds the outputfiles for each perspective. Type: dictionary.
                     self.output_filenames = {}
+                    #loop through perspectives.
                     for s_name in self.annotationDictionary["sources"]:
+                        # append to the filename the feature perspective name
                         filename = filename + "_" + s_name + ".csv"
+                        # set output files
                         self.output_filenames[s_name] = open(filename, 'wa')
+                        # define the headers for the csv files (variable, column, names).
                         self.csv_writers[s_name] = csv.DictWriter(self.output_filenames[s_name],
                                                                   ["time"] + self.annotationDictionary[s_name]["labels"]
                                                                   + self.topicSelectionONHeaders)
+                        # write the headers
                         self.csv_writers[s_name].writeheader()
+                        # flush data
                         self.output_filenames[s_name].flush()
                 except Exception as e:
                     logger.error(traceback.format_exc())
 
+                # loop through the data printing the windows content.
                 self.printDataToFile()
 
+        # If there is no topic selected in the tree of topics before the button is pressed, ask the user
+        # to select at least one.
         elif not self.treeHasItemSelected():
             self.errorMessages(2)
+        # If there is no file loaded, ask the user to load them.
         elif not self.isEnabled():
             self.errorMessages(3)
 
     def closeEvent(self,event):
-        pass
+        """Caputes the pressing of the windows exit button (x button)"""
+        pass # currently does nothing.
 
 
 
