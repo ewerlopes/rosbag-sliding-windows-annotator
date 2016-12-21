@@ -491,6 +491,11 @@ class AnnotationParser(QWidget):
             # sorting the combined buffer for easing the following loops.
             self.sorted_timeline[s_name] = sorted(combined_buffer)
 
+            try:
+                assert len(self.sorted_timeline[s_name]) == len(set(self.timeline[s_name].keys()))
+            except:
+                logger.error(traceback.format_exc())
+
         try:
             # For each feature category (tabs)
             for s_name in self.annotationDictionary["sources"]:
@@ -515,7 +520,7 @@ class AnnotationParser(QWidget):
                                 break           # exit this start index discovering loop.
 
                         ##### loops, getting the msg data until the windows end endpoint is reached
-                        for j in range(index_s,len(self.timeline[s_name])):
+                        for j in range(index_s,len(self.sorted_timeline[s_name])):
                             # loops while the current index is less then or equal to the windows end endpoint
                             if self.sorted_timeline[s_name][j] <= end:
                                 index_e = j     # sets the current index for the data.
@@ -560,7 +565,7 @@ class AnnotationParser(QWidget):
                         self.csv_writers[s_name].writerows([{}])    #write an empty line to mark the end of the windows
                         self.output_filenames[s_name].flush()       #flush data.
 
-        except Exception as e:
+        except:
             logger.error(traceback.format_exc())
 
     def getTopicValue(self, dictionary, msg, parent, ignore = ["header"]):
