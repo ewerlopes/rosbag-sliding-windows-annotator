@@ -9,7 +9,8 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from annotator_utils import *
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
+from operator import itemgetter
 
 ### logging setup #####
 logger = logging.getLogger(__name__)
@@ -19,6 +20,8 @@ date_format = '%Y-%m-%d %H:%M:%S'
 handler.setFormatter(logging.Formatter(format,date_format))
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
+
+assertEnum = {True:"OK",False:"FAILED"}
 
 class AnnotationParser(QWidget):
     def __init__(self, parent=None):
@@ -40,7 +43,8 @@ class AnnotationParser(QWidget):
         self.bag_topics = {}               # topics as extracted from the bag info.
         self.bag_data   = {}               # as a list extracted from the bag_topics
         self.csv_writers = {}              # the csv file objects
-        self.output_data_files = {}        # the data file names.
+        self.output_filenames = {}        # the data file names.
+        self.TOLERANCE = 0.001             #tolerance value for deviation in the windows slice
 
 
         # Create Push Buttons
@@ -339,98 +343,121 @@ class AnnotationParser(QWidget):
         msgBox.resize(100,40)
         msgBox.exec_()
 
-    def printDataToFileOLD(self):
-        try:
-            for s_name in self.annotationDictionary["sources"]:
-                for item in self.topicSelectionON:
-                    topicList =  item.split(".")
-                    topic = topicList[0]
-                    logger.debug("Splited: " + topic)
-                    for t,w in enumerate(self.windowsInterval):
-                        start = w[0]
-                        end = w[1]
-                        buffer = []
-                        index_s = 0
-                        for i in range(len(self.bag_data[topic]["time_buffer_secs"])):
-                            if self.bag_data[topic]["time_buffer_secs"][i] >= start:
-                                index_s = i
-                                break
-                        for j in range(index_s,len(self.bag_data[topic]["time_buffer_secs"]) - index_s):
-                            if self.bag_data[topic]["time_buffer_secs"][j] <= end:
-                                if self.annotationDictionary[s_name]["tags"][t] == []:
-                                    self.csv_writers[s_name].writerows([{}])
-                                else:
-                                    row = copy.copy(self.annotationDictionary[s_name]["tags"][t])
-                                    logger.debug("TAG: " + str(self.annotationDictionary[s_name]["tags"][t]))
-                                    logger.debug("Copy: "+ str(row))
-                                    logger.debug("ITEM: "+item)
-                                    logger.debug("Command: " + ".".join(topicList[1:]))
-                                    row[item] = getattr(self.bag_data[topic]["msg"][j],".".join(topicList[1:]))
-                                    if row[item] == None:
-                                        logger.debug("NONE!!!!")
-                                    logger.debug("Row: "+ str(row))
-                                    buffer.append(row)
-                                    self.csv_writers[s_name].writerows(buffer)
-                                    self.csv_writers[s_name].writerows([{}])
-                                    self.output_data_files[s_name].flush()
-        except Exception as e:
-            logger.error(traceback.format_exc())
-
     def printDataToFile(self):
+        """This function loops through the self.bag_data["msg] data list and based on
+        the windows division (self.windowsInterval), prints the data the csv file."""
+
+        logger.info("Aligning different time buffers...")
+        # getting a combined timeline using the topics timebuffers.
+        self.timeline = {}              # combined time line
+        self.sorted_timeline = {}       # the sorted combined time line (it is necessary since dicts are unsorted)
+        for s_name in self.annotationDictionary["sources"]:
+            combined_buffer = {}
+            for topicName in self.topicSelectionON.keys():
+                # getting a combined timeline for all user selected topics. combined buffer
+                # is a dictionary structure that saves the time(in secs) as key and each topic
+                # in the given time as values. If two different topics have the same time, they
+                # are stored as a list.
+                [combined_buffer.setdefault(t,[]).append(topicName)
+                 for t in self.bag_data[topicName]["time_buffer_secs"]]
+
+            # saving the current combined buffer for the feature category (tabs)
+            self.timeline[s_name] = combined_buffer
+            # sorting the combined buffer for easing the following loops.
+            self.sorted_timeline[s_name] = sorted(combined_buffer)
+
         try:
-            control_counter = {}
-            t_time_buffer_sizes = {}
-            for t_name in [top["topic"] for top in self.bag_topics ]:
-                if t_name in self.topicSelectionON.keys():
-                    t_time_buffer_sizes[t_name] = len(self.bag_data[t_name]["time_buffer_secs"])
-                    control_counter[t_name] = 0
-                    logger.debug("Lenght:"+ json.dumps(t_time_buffer_sizes[t_name], indent=4))
-
+            # For each feature category (tabs)
             for s_name in self.annotationDictionary["sources"]:
+                # Loops through all windows.
                 for t,w in enumerate(self.windowsInterval):
-                    logger.debug(20* "*" + ' ' + str(t))
+                    logger.info("Feature Category: "+ s_name + '\tWin#: ' + str(t))
+                    # skip empty tag in the jason file.
                     if self.annotationDictionary[s_name]["tags"][t] == []:
-                        for m in self.topicSelectionONHeaders:
-                            self.csv_writers[s_name][m].writerows([{}])
-                            self.output_data_files[s_name][m].flush()
+                        # print empty row to the output csv file
+                        self.csv_writers[s_name].writerows([{}])
                     else:
-                        start = w[0]
-                        end = w[1]
-                        buffer = []
-                        index_s = 0
-                        for topic, tBufferSize in t_time_buffer_sizes.iteritems():
-                            for index in range(tBufferSize):
-                                if self.bag_data[topic]["time_buffer_secs"][index] >= start:
-                                    index_s = index
-                                    break
-                            for j in range(index_s,tBufferSize):
-                                if self.bag_data[topic]["time_buffer_secs"][j] <= end:
-                                    logger.debug(20 * "+")
-                                    for m in self.topicSelectionON[topic]:
-                                        row = copy.copy(self.annotationDictionary[s_name]["tags"][t])
-                                        featureName = topic+"."+m
-                                        logger.debug("Topic: " + topic)
-                                        logger.debug("Command: " + featureName)
-                                        row[featureName] = getattr(self.bag_data[topic]["msg"][j],m)
-                                        logger.debug(row[featureName])
-                                        if row[featureName] == None:
-                                            logger.debug("NONE!!!!")
-                                        #buffer.append(row)
-                                        self.csv_writers[s_name][featureName].writerows([row])
-                                        control_counter[topic] += 1
-                            #Print a blank line demarking and of window
-                            for m in self.topicSelectionON[topic]:
-                                featureName = topic + "." + m
-                                self.csv_writers[s_name][featureName].writerows([{}])
-                                self.output_data_files[s_name][featureName].flush()
+                        start = w[0]        # start of the windows
+                        end = w[1]          # end of the windows
+                        buffer = []         # windows content
+                        index_s = 0         # windows start index (allowing looping through the self.timeline)
+                        index_e = 0         # windows end index (allowing looping through the self.timeline)
 
-            # for t_name in [top["topic"] for top in self.bag_topics]:
-            #     if t_name in self.topicSelectionON.keys():
-            #         assert(control_counter[t_name]==t_time_buffer_sizes[t_name])
+                        ##### loops to discover start index
+                        for i in range(len(self.sorted_timeline[s_name])):
+                            if self.sorted_timeline[s_name][i] >= start:
+                                index_s = i     # set windows start index.
+                                break           # exit this start index discovering loop.
+
+                        ##### loops, getting the msg data until the windows end endpoint is reached
+                        for j in range(index_s,len(self.timeline[s_name])):
+                            # loops while the current index is less then or equal to the windows end endpoint
+                            if self.sorted_timeline[s_name][j] <= end:
+                                index_e = j     # sets the current index for the data.
+                                # copy tag data from current window
+                                row = copy.copy(self.annotationDictionary[s_name]["tags"][t])
+                                # set the current time stamp for the row
+                                row["time"] = self.sorted_timeline[s_name][index_e]
+                                # calls self._getMsgValue to retrieve the data for each selected topic (topic field).
+                                for topicName in self.timeline[s_name][row["time"]]:
+                                    # get data. NOTE: the msg vector is aligned with the time_buffer_sec
+                                    # for a given topic, this is because they are currently being saved at
+                                    # the same time in getBagData() method. So, we only have to discover
+                                    # which msg index is associated with the self.sorted_timeline[s_name]
+                                    # value at index_e.
+                                    row = self._getMsgValue(row,self.bag_data[topicName]["msg"]
+                                    [self.bag_data[topicName]["time_buffer_secs"].index(row["time"])],topicName)
+                                    # append row to the windows row batch
+                                    buffer.append(row)
+                            else:
+                                break       ### spin the windows, allowing to move on.
+
+                        ##### Checks whether the deviation between the windows "begin"
+                        ##### and "end" times is less the tolerance value.
+                        try:
+                            assert abs(start - self.sorted_timeline[s_name][index_s]) < self.TOLERANCE
+                            logger.info("WStart: " + str(start) + " Retrieval start:" +
+                                        str(self.sorted_timeline[s_name][index_s]) + " Sync: OK!")
+                        except Exception as e:
+                            logger.error("Beginning of the windows is out of sync! MustBe: "+
+                                         str(start) + "\tWas: " + str(self.sorted_timeline[s_name][index_s]))
+                        try:
+                            assert abs(end -self.sorted_timeline[s_name][index_e]) < self.TOLERANCE
+                            logger.info("WEnd: " + str(end) + " Retrieval end:" +
+                                        str(self.sorted_timeline[s_name][index_e]) + " Sync: OK!")
+                        except Exception as e:
+                            logger.error("End of the windows is out of sync! MustBe: "+
+                                         str(end) + "\tWas: " +
+                                         str(self.sorted_timeline[s_name][index_e]))
+
+                        ##### Prints the windows content (row batch) to the corresponding (s_name) csv file.
+                        self.csv_writers[s_name].writerows(buffer)  #write content to the file
+                        self.csv_writers[s_name].writerows([{}])    #write an empty line to mark the end of the windows
+                        self.output_filenames[s_name].flush()       #flush data.
+
         except Exception as e:
             logger.error(traceback.format_exc())
+
+
+    def _getMsgValue(self, dictionary, msg, parent, ignore = ["header"]):
+        """Recursively saves in dictionary the msg values of the topics set on in the
+        tree."""
+        if hasattr(type(msg), '__slots__'):
+            for s in type(msg).__slots__:
+                if s in ignore:
+                    continue
+                else:
+                    val = msg.__getattribute__(s)
+                    dictionary = self._getMsgValue(dictionary, val, ".".join([parent, s]))
+        else:
+            dictionary[parent] = msg
+
+        return dictionary
 
     def save(self):
+        """Opens a dialog windows and asks the general filenames
+        used for saving the data. It generates as much files as those
+        defined in the json source field. In other words, one for each tab."""
         self.processTreeOfTopics()
         if self.isEnableSave() and self.treeHasItemSelected():
             self.getBagData()
@@ -446,26 +473,18 @@ class AnnotationParser(QWidget):
                     filename = insertedName[0]
                     self.saveTextArea.setText(filename)
 
-                for s_name in self.annotationDictionary["sources"]:
-                    self.output_data_files[s_name] = {}
-                    self.csv_writers[s_name]       = {}
-                    for selected in self.topicSelectionONHeaders:
-                        sel_file_name = selected.split("/")
-                        sel_file_name = "_".join(sel_file_name)
-                        logger.debug(sel_file_name)
-                        try:
-
-                            self.output_data_files[s_name][selected] = open(filename+"_"+
-                                                                                 sel_file_name +
-                                                                                 ".csv", 'wa')
-                            self.csv_writers[s_name][selected] = csv.DictWriter(self.output_data_files[s_name][selected],
-                                                                        self.annotationDictionary[s_name]["labels"]+
-                                                                        [selected])
-                            self.csv_writers[s_name][selected].writeheader()
-                            self.output_data_files[s_name][selected].flush()
-                        except Exception as e:
-                            logger.error(traceback.format_exc())
-
+                try:
+                    self.output_filenames = {}
+                    for s_name in self.annotationDictionary["sources"]:
+                        filename = filename + "_" + s_name + ".csv"
+                        self.output_filenames[s_name] = open(filename, 'wa')
+                        self.csv_writers[s_name] = csv.DictWriter(self.output_filenames[s_name],
+                                                                  ["time"] + self.annotationDictionary[s_name]["labels"]
+                                                                  + self.topicSelectionONHeaders)
+                        self.csv_writers[s_name].writeheader()
+                        self.output_filenames[s_name].flush()
+                except Exception as e:
+                    logger.error(traceback.format_exc())
 
                 self.printDataToFile()
 
