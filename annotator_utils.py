@@ -5,6 +5,22 @@ import sys
 from PyQt5 import QtCore
 import logging
 
+def printHumanReadableSize(nbytes):
+    """ Prints the number of bytes in a human readable way.
+    parameter
+        nbytes : number of bytes
+    return
+        the size with respect to B, KB, MB, GB, TB and PB.
+    """
+    suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+    if nbytes == 0: return '0 B'
+    i = 0
+    while nbytes >= 1024 and i < len(suffixes)-1:
+        nbytes /= 1024.
+        i += 1
+    f = ('%.2f' % nbytes).rstrip('0').rstrip('.')
+    return '%s %s' % (f, suffixes[i])
+    
 def buffer_data(bag, input_topic, compressed):
     image_buff = []
     time_buff  = []

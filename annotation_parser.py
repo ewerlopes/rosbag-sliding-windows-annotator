@@ -2,31 +2,58 @@
 # -*- coding: utf-8 -*-
 # Ewerton Lopes
 # Politecnico di Milano, December, 2016.
-# This program aims at exporting bag data into csv files. This piece of
+# This program aims at exporting bag data as csv files. This piece of
 # software should be used as an extension of the "annotation.py" program (also
 # included in this directory). It should receive the bag file and the annotation
-# generated as a json file by the annotation.py. Then, it exports the data into
-# a csv that can then be used easily by other platforms.
+# generated as a json file by the annotation.py (for the corresponding bag file, of course).
+# Then, it exports the data as a csv.
 
 import json
-import copy
+import copy, os, sys, shutil
 import rosbag
 import traceback
+import argparse
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from annotator_utils import *
 from collections import defaultdict
+from collections import defaultdict, Counter
 
-### logging setup #####
-logger = logging.getLogger(__name__)
-handler = QtHandler()
-format = '%(asctime)s -- %(levelname)s --> %(message)s'
-date_format = '%Y-%m-%d %H:%M:%S'
-handler.setFormatter(logging.Formatter(format,date_format))
-logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
-#######################
+logger = None
+### try to load color module for logger ####
+try:
+    import colorlog
+    have_colorlog = True
+except ImportError:
+    have_colorlog = False
+############################################
+
+def readArgs():
+    """ Deals with the argments"""
+    parser = argparse.ArgumentParser(description=
+    """Annotation parser script. This program is going to save a given
+    rosbag file data as csv file, given the annotation described in its
+    corresponding json file. It generates a csv file for each feature
+    perspective, taking into account ther corresponding annotations in
+    the jason and the topics on it described.
+    """) 
+    
+    parser.add_argument('-b','--bags-dir', metavar='',
+                        action='store', default=os.path.dirname(os.path.abspath(__file__)),
+                        help='Specify the bag input directory.')
+    parser.add_argument('-a','--annotation_dir', metavar='', 
+                        dest='annotation_dir', action='store',
+                        default=os.path.dirname(os.path.abspath(__file__)),
+                        help='the folder containing the annotation json files location.')
+    parser.add_argument('-o', '--output_dir', metavar='',
+                        dest='output_dir', action='store',
+                        default=os.path.dirname(os.path.abspath(__file__)) + "/annotation_to_csv",
+                        help='the folder where to save the extracted csv files.')
+    parser.add_argument('--gui', dest='gui', action='store_true', default=False,
+                        help='whether to display the GUI.')
+    
+    return parser.parse_args()
 
 class AnnotationParser(QWidget):
     def __init__(self, parent=None):
@@ -679,10 +706,49 @@ class AnnotationParser(QWidget):
         pass # currently does nothing.
 
 if __name__ == '__main__':
-    app = QApplication(sys.argv)
+    args = readArgs()
+    if args.gui:
+        #### Logger setup ####
+        logger = logging.getLogger(__name__)
+        handler = QtHandler()
+        format = '%(asctime)s -- %(levelname)s --> %(message)s'
+        date_format = '%Y-%m-%d %H:%M:%S'
+        handler.setFormatter(logging.Formatter(format,date_format))
+        logger.addHandler(handler)
+        logger.setLevel(logging.DEBUG)
+        #######################
+        
+        app = QApplication(sys.argv)
+        player = AnnotationParser()
+        player.resize(1340, QApplication.desktop().screenGeometry().height())
+        player.show()
 
-    player = AnnotationParser()
-    player.resize(1340, QApplication.desktop().screenGeometry().height())
-    player.show()
+        sys.exit(app.exec_())
+    else:
+        ##### Logger setup ######
+        # create logger
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.DEBUG)
 
-    sys.exit(app.exec_())
+        # create console handler and set level to debug
+        ch = logging.StreamHandler( sys.__stdout__ ) # Add this
+        ch.setLevel(logging.DEBUG)
+
+        # create formatter
+        format      = '%(asctime)s - %(levelname)-8s - %(message)s'
+        date_format = '%Y-%m-%d %H:%M:%S'
+        if have_colorlog and os.isatty(2):
+            cformat   = '%(log_color)s' + format
+            formatter = colorlog.ColoredFormatter(cformat, date_format,
+                  log_colors = { 'DEBUG'   : 'magenta',       'INFO' : 'green',
+                                 'WARNING' : 'bold_yellow', 'ERROR': 'red',
+                                 'CRITICAL': 'bold_red' })
+        else:
+            formatter = logging.Formatter(format, date_format)
+            
+        # add formatter to ch
+        ch.setFormatter(formatter)
+        # add ch to logger
+        logger.addHandler(ch)
+        #########################
+        logger.info("Initiating program without graphical interface!")
