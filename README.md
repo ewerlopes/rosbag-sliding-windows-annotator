@@ -18,7 +18,7 @@ Note that the objective of this program is to use a video image topic as a guide
 $ sudo apt-get install ros-kinetic-python-qt-binding pyqt5-dev pyqt5-dev-tools python-pyqt5.qtmultimedia python-pyqt5
 ```
 ##### Possible compementary dependencies:
-Depending on how you install ros (desktop-full or just desktop), you may run into the `defaultServiceProvider::requestService(): no service found for - "org.qt-project.qt.mediaplayer` problem. It is a problem probabily related with the qtmultimedia part of the pyqt5 library. A quick solution would be to install qtmultimedia5.examples, by issuing the folowing command in the terminal:
+Depending on how you install ros (desktop-full or just desktop), you may run into the `defaultServiceProvider::requestService(): no service found for - "org.qt-project.qt.mediaplayer"` problem when playing the rosbag image topics in the `annotator.py` script. It is a problem most likely related with the qtmultimedia part of the pyqt5 library. A quick solution would be to install qtmultimedia5.examples, by issuing the folowing command in the terminal:
 
 ```sudo apt-get install qtmultimedia5-examples```
 
@@ -41,9 +41,9 @@ Before using the scripts, place in the `config.json` file, that should be placed
 }
 ```
 
-Note that if must basically follow the python dictinary sintax. At this point in version, only two nested values are allowed in the config.jason. That is, a more broad feature perspective ("Human", "Robot") and the feature labels themselves with their values being a list of strings (In case of just one value, place it as a single-element list). The called feature perspectives are used for grouping the labels into tabs in the `./annotator.py` interface. This is directed for the case where the annotating data that have multiple tags perspective, for instance, we can annotate the data with the human perspective or doing that taking into consideration the robot behavior in the scene or both.
+Note that if must basically follow the python dictinary sintax. At this point in version, only two nested values are allowed in the config.jason. That is, a more broad feature perspective ("Human", "Robot") and the feature labels themselves with their values being a list of strings (In case of just one value, place it as a single-element list). The called feature perspectives are used for grouping the labels into tabs in the `annotator.py` interface. This is directed for the case where the annotating data that have multiple tags perspective, for instance, we can annotate the data with the human perspective or doing that taking into consideration the robot behavior in the scene or both.
 
-Run the annotator with `./annotator.py` command for actual data annotation. You can control parameters like: `overlap`: the amount of overlap between consecuteve windows; `windows size`: the size of the data windows in seconds. Note that you should make sure you are using the right image topic for the selection. A image topic selection combo box is present in the interface.
+Run the annotator with `annotator.py` command for actual data annotation. You can control parameters like: `overlap`: the amount of overlap between consecutive windows; `windows size`: the size of the data windows in seconds. Note that you should make sure you are using the right image topic for the selection. A image topic selection combo box is present in the interface.
 
 Run the `annotation_parser.py` if you are interested in getting the annotated bag file data from the corresponding generated json file and its associated rosbag file. Load the two using the appropriated buttons, choose the topics you want to extract and press the `Export CSV` button. The program then is going to save csv files with the bag data, given the annotation described in the json file. It generates a csv file for each perspective, taking into account ther corresponding annotations in the jason.
 
