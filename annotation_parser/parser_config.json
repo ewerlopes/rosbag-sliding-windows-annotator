@@ -1,0 +1,13 @@
+{
+    "/kinect_features/.ci": "ON", 
+    "/kinect_features/.distance": "ON", 
+    "/kinect_features/.proximity": "ON", 
+    "robogame/imu_state.gyro.x": "ON", 
+    "robogame/imu_state.gyro.y": "ON", 
+    "robogame/imu_state.gyro.z": "ON", 
+    "robogame/imu_state.linear_acc.x": "ON", 
+    "robogame/imu_state.linear_acc.y": "ON", 
+    "robogame/imu_state.linear_acc.z": "ON", 
+    "robogame/imu_state.q": "OFF"
+}
+

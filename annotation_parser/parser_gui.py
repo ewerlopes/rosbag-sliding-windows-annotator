@@ -9,55 +9,63 @@
 # Then, it exports the data as a csv.
 
 import json
-import copy, os, sys, shutil
+import copy
 import rosbag
+import logging
 import traceback
-import argparse
+import sys, os, csv
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
-from annotator_utils import *
+from PyQt5 import QtCore
 from collections import defaultdict
-from collections import defaultdict, Counter
 
-logger = None
-### try to load color module for logger ####
-try:
-    import colorlog
-    have_colorlog = True
-except ImportError:
-    have_colorlog = False
-############################################
+### classes from http://stackoverflow.com/questions/24469662/how-to-redirect-logger-output-into-pyqt-text-widget
+class QtHandler(logging.Handler):
+    def __init__(self):
+        logging.Handler.__init__(self)
+    def emit(self, record):
+        record = self.format(record)
+        if record: XStream.stdout().write('%s\n'%record)
+        # originally: XStream.stdout().write("{}\n".format(record))
 
-def readArgs():
-    """ Deals with the argments"""
-    parser = argparse.ArgumentParser(description=
-    """Annotation parser script. This program is going to save a given
-    rosbag file data as csv file, given the annotation described in its
-    corresponding json file. It generates a csv file for each feature
-    perspective, taking into account ther corresponding annotations in
-    the jason and the topics on it described.
-    """) 
-    
-    parser.add_argument('-b','--bags-dir', metavar='',
-                        action='store', default=os.path.dirname(os.path.abspath(__file__)),
-                        help='Specify the bag input directory.')
-    parser.add_argument('-a','--annotation_dir', metavar='', 
-                        dest='annotation_dir', action='store',
-                        default=os.path.dirname(os.path.abspath(__file__)),
-                        help='the folder containing the annotation json files location.')
-    parser.add_argument('-o', '--output_dir', metavar='',
-                        dest='output_dir', action='store',
-                        default=os.path.dirname(os.path.abspath(__file__)) + "/annotation_to_csv",
-                        help='the folder where to save the extracted csv files.')
-    parser.add_argument('--gui', dest='gui', action='store_true', default=False,
-                        help='whether to display the GUI.')
-    
-    return parser.parse_args()
+class XStream(QtCore.QObject):
+    _stdout = None
+    _stderr = None
+    messageWritten = QtCore.pyqtSignal(str)
+    def flush( self ):
+        pass
+    def fileno( self ):
+        return -1
+    def write( self, msg ):
+        if ( not self.signalsBlocked() ):
+            self.messageWritten.emit(unicode(msg))
+    @staticmethod
+    def stdout():
+        if ( not XStream._stdout ):
+            XStream._stdout = XStream()
+            sys.stdout = XStream._stdout
+        return XStream._stdout
+    @staticmethod
+    def stderr():
+        if ( not XStream._stderr ):
+            XStream._stderr = XStream()
+            sys.stderr = XStream._stderr
+        return XStream._stderr
 
-class AnnotationParser(QWidget):
+class AnnotationGUIParser(QWidget):
     def __init__(self, parent=None):
-        super(AnnotationParser, self).__init__(parent)
+        super(AnnotationGUIParser, self).__init__(parent)
+
+        #### Logger setup ####
+        self.logger = logging.getLogger(__name__)
+        handler = QtHandler()
+        format = '%(asctime)s -- %(levelname)s --> %(message)s'
+        date_format = '%Y-%m-%d %H:%M:%S'
+        handler.setFormatter(logging.Formatter(format, date_format))
+        self.logger.addHandler(handler)
+        self.logger.setLevel(logging.DEBUG)
+        #######################
 
         # the jason config data for setting labels
         self.bag = ''                       # The loaded bag object
@@ -279,10 +287,10 @@ class AnnotationParser(QWidget):
                 # defines a list of topics that are set as ON.
                 self.topicSelectionONHeaders.append(k)
 
-        logger.info("Tree selection: \n" + json.dumps(self.topicSelectionState, indent=4, sort_keys=True))
-        logger.info("Selected (ON): "+ json.dumps(self.topicSelectionON,
+        self.logger.info("Tree selection: \n" + json.dumps(self.topicSelectionState, indent=4, sort_keys=True))
+        self.logger.info("Selected (ON): "+ json.dumps(self.topicSelectionON,
                                                    indent=4, sort_keys=True))
-        logger.info("Selected (ON) Headers: " + json.dumps(self.topicSelectionONHeaders,
+        self.logger.info("Selected (ON) Headers: " + json.dumps(self.topicSelectionONHeaders,
                                                     indent=4, sort_keys=True))
 
     def treeHasItemSelected(self):
@@ -317,7 +325,7 @@ class AnnotationParser(QWidget):
                     self.setAnnotationFlags()
                 else:
                     self.errorMessages(1)
-                    logger.error("Could not load" + self.annotationFileName + " annotation file! "
+                    self.logger.error("Could not load" + self.annotationFileName + " annotation file! "
                                  "Reason: bag is incompatible with the given annotation file.")
                     self.annotationFileName = ''
             else:
@@ -357,7 +365,7 @@ class AnnotationParser(QWidget):
         str_buffer.append("TOTAL BAG DURATION: "+ str(total_bag_time))
         str_buffer.append("TOTAL WINDOWING TIME: "+str(total_win_time))
         str_buffer.append("TIME NOT USED: " + str(float((total_bag_time)-float(total_win_time))))
-        logger.info("\n".join(str_buffer))
+        self.logger.info("\n".join(str_buffer))
 
     def openBagFile(self):
         """Prompts the user for choosing the bag file and loads the data."""
@@ -381,12 +389,12 @@ class AnnotationParser(QWidget):
                 for top in self.bag_topics:
                     string_buffer.append("\t- " + top["topic"] + "\n\t\t-Type: " +
                                          top["type"] + "\n\t\t-Fps: " + str(top["frequency"]))
-                logger.info("\n".join(string_buffer))
+                self.logger.info("\n".join(string_buffer))
                 #######
 
             except Exception,e:
                 self.errorMessages(4)
-                logger.error(str(e))
+                self.logger.error(str(e))
 
             # Checks whether the compatibility with the json has to be checker. That is,
             # in case the json is already loaded, we need to check whether this bag file
@@ -398,7 +406,7 @@ class AnnotationParser(QWidget):
                     # In case areFileCompatible method returns false, we reset the
                     # variables this function set.
                     self.errorMessages(0)
-                    logger.error("Could not load" + self.bagFileName +" the bag file! "
+                    self.logger.error("Could not load" + self.bagFileName +" the bag file! "
                                  "Reason: bag is incompatible with the given annotation file.")
                     self.bagFileName = ''
                     self.bag = ''
@@ -465,7 +473,7 @@ class AnnotationParser(QWidget):
                 self.bag_data[topic]["time_buffer_secs"].append(t.to_sec() -
                                                                  self.bag_data[topic]["s_time"].to_sec())
             except:
-                logger.debug("Error: " + topic)
+                self.logger.debug("Error: " + topic)
 
     def loadJson(self, filename):
         """Loads a json. Returns its content in a dictionary"""
@@ -499,7 +507,7 @@ class AnnotationParser(QWidget):
         """This function loops through the self.bag_data["msg] data list and based on
         the windows division (self.windowsInterval), prints the data the csv file."""
 
-        logger.info("Aligning different time buffers...")
+        self.logger.info("Aligning different time buffers...")
         # getting a combined timeline using the topics timebuffers.
         self.timeline = {}              # combined time line
         self.sorted_timeline = {}       # the sorted combined time line (it is necessary since dicts are unsorted)
@@ -521,14 +529,14 @@ class AnnotationParser(QWidget):
             try:
                 assert len(self.sorted_timeline[s_name]) == len(set(self.timeline[s_name].keys()))
             except:
-                logger.error(traceback.format_exc())
+                self.logger.error(traceback.format_exc())
 
         try:
             # For each feature category (tabs)
             for s_name in self.annotationDictionary["sources"]:
                 # Loops through all windows.
                 for t,w in enumerate(self.windowsInterval):
-                    logger.info("Feature Category: "+ s_name + '\tWin#: ' + str(t))
+                    self.logger.info("Feature Category: "+ s_name + '\tWin#: ' + str(t))
                     # skip empty tag in the jason file.
                     if self.annotationDictionary[s_name]["tags"][t] == []:
                         # print empty row to the output csv file
@@ -573,19 +581,21 @@ class AnnotationParser(QWidget):
                         ##### and "end" times is less the tolerance value.
                         try:
                             assert abs(start - self.sorted_timeline[s_name][index_s]) < self.mismatchTolerance
-                            logger.info("WStart: " + str(start) + " Retrieval start:" +
+                            self.logger.info("WStart: " + str(start) + " Retrieval start:" +
                                         str(self.sorted_timeline[s_name][index_s]) + " Sync: OK!")
                         except Exception as e:
-                            logger.error("Beginning of the windows is out of sync! MustBe: "+
-                                         str(start) + "\tWas: " + str(self.sorted_timeline[s_name][index_s]))
+                            self.logger.error("Beginning of the windows is out of sync! MustBe: "+
+                                         str(start) + "\tWas: " + str(self.sorted_timeline[s_name][index_s]) +
+                                              "\tTol: " + str(self.mismatchTolerance))
                         try:
                             assert abs(end -self.sorted_timeline[s_name][index_e]) < self.mismatchTolerance
-                            logger.info("WEnd: " + str(end) + " Retrieval end:" +
+                            self.logger.info("WEnd: " + str(end) + " Retrieval end:" +
                                         str(self.sorted_timeline[s_name][index_e]) + " Sync: OK!")
                         except Exception as e:
-                            logger.error("End of the windows is out of sync! MustBe: "+
+                            self.logger.error("End of the windows is out of sync! MustBe: "+
                                          str(end) + "\tWas: " +
-                                         str(self.sorted_timeline[s_name][index_e]))
+                                         str(self.sorted_timeline[s_name][index_e]) +
+                                              "\tTol: " + str(self.mismatchTolerance))
 
                         ##### Prints the windows content (row batch) to the corresponding (s_name) csv file.
                         self.csv_writers[s_name].writerows(buffer)  #write content to the file
@@ -593,7 +603,7 @@ class AnnotationParser(QWidget):
                         self.output_filenames[s_name].flush()       #flush data.
 
         except:
-            logger.error(traceback.format_exc())
+            self.logger.error(traceback.format_exc())
 
     def getTopicValue(self, dictionary, msg, parent, ignore = ["header"]):
         """Recursively saves in "dictionary" the msg values of the topics set on in the
@@ -685,8 +695,8 @@ class AnnotationParser(QWidget):
                         self.csv_writers[s_name].writeheader()
                         # flush data
                         self.output_filenames[s_name].flush()
-                except Exception as e:
-                    logger.error(traceback.format_exc())
+                except:
+                    self.logger.error(traceback.format_exc())
 
                 # loop through the data printing the windows content.
                 self.writeData()
@@ -706,49 +716,10 @@ class AnnotationParser(QWidget):
         pass # currently does nothing.
 
 if __name__ == '__main__':
-    args = readArgs()
-    if args.gui:
-        #### Logger setup ####
-        logger = logging.getLogger(__name__)
-        handler = QtHandler()
-        format = '%(asctime)s -- %(levelname)s --> %(message)s'
-        date_format = '%Y-%m-%d %H:%M:%S'
-        handler.setFormatter(logging.Formatter(format,date_format))
-        logger.addHandler(handler)
-        logger.setLevel(logging.DEBUG)
-        #######################
         
-        app = QApplication(sys.argv)
-        player = AnnotationParser()
-        player.resize(1340, QApplication.desktop().screenGeometry().height())
-        player.show()
+    app = QApplication(sys.argv)
+    player = AnnotationGUIParser()
+    player.resize(1340, QApplication.desktop().screenGeometry().height())
+    player.show()
 
-        sys.exit(app.exec_())
-    else:
-        ##### Logger setup ######
-        # create logger
-        logger = logging.getLogger(__name__)
-        logger.setLevel(logging.DEBUG)
-
-        # create console handler and set level to debug
-        ch = logging.StreamHandler( sys.__stdout__ ) # Add this
-        ch.setLevel(logging.DEBUG)
-
-        # create formatter
-        format      = '%(asctime)s - %(levelname)-8s - %(message)s'
-        date_format = '%Y-%m-%d %H:%M:%S'
-        if have_colorlog and os.isatty(2):
-            cformat   = '%(log_color)s' + format
-            formatter = colorlog.ColoredFormatter(cformat, date_format,
-                  log_colors = { 'DEBUG'   : 'magenta',       'INFO' : 'green',
-                                 'WARNING' : 'bold_yellow', 'ERROR': 'red',
-                                 'CRITICAL': 'bold_red' })
-        else:
-            formatter = logging.Formatter(format, date_format)
-            
-        # add formatter to ch
-        ch.setFormatter(formatter)
-        # add ch to logger
-        logger.addHandler(ch)
-        #########################
-        logger.info("Initiating program without graphical interface!")
+    sys.exit(app.exec_())
