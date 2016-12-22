@@ -1,52 +1,85 @@
-# Rosbag Annotator
-This program will help you annotate a rosbag file by producing a result file with timestamps of the annotated events.
-Currently works only for Image and CompressedImage topics 
+# Rosbag Sliding Window Annotator
+![Language](https://img.shields.io/badge/Python-2.7-blue.svg) ![ROS](https://img.shields.io/badge/ROS-Kinetic%20Kame-brightgreen.svg) ![Ubuntu](https://img.shields.io/badge/Ubuntu-16.04LTS-orange.svg) 
+![Version](https://img.shields.io/badge/version-1.0-brightgreen.svg) ![License MIT](https://img.shields.io/cocoapods/l/AFNetworking.svg)
 
-It takes as input the rosbag file and a csv file if exists with annotated(or not) bound boxes from the video.
-The csv file holds the annotations from the video and some other useful metrics.
-It playbacks the rosbag file and give you some basic controls over the display and the ability to draw bound
-boxes on the video surface which saves them in the csv when exiting the application.
-A Gant is included below the video to show annotations from the video. The boxes are drown as: `<HumanId::Action>`
+This project aims at providing a way to annotate rosbag files by using the method of sliding windows. The annotation procedure is done by using the `annotator.py` script. At the end of the annotation procedure, the script generates a json file with timestamps and other general information about the data tagged. The generated json file, together with its associated bag file is then feed into a second script called the `annotation_parser.py` that extract the actual data from the rosbag into a `csv` file, for further processing.
 
-####This video player annotator is based on pyqt5 library.
-
-_labels.json_ file is used to add or remove any class label for annotation usage.
+Note that the objective of this program is to use a video image topic as a guide for tagging numerical data. It is useful, for instance, if you want to work with activity recognition and need to annotate data from numerical sensors, like accelerometers, that were recorded in a given moment in time. In this case, the image topic is used as a guide for tagging numerical data in the same rosbag file, since using only the numerical values would be hard.
 
 ## DEPENDENCIES
-* **OS:** Ubuntu 16.04
-* **Python 2.7.xx**
-
-    You can check your version with: `python -V` command
+* **OS:** `Ubuntu 16.04`
+* **Python:** `Version 2.7.xx`. You can check your version from terminal, with: `python -V`.
 
 
-* **Ros-Kinetic:** http://wiki.ros.org/kinetic/Installation/Ubuntu
-* Download synaptic package manager '''sudo apt-get install''' synaptic and select the libraries below:
+* **Ros:** [`Kinetic Kame`](http://wiki.ros.org/kinetic/Installation/Ubuntu)
+* **Libraries:**
 
-      1. ros-kinetic-python-qt-binding
+```bash
+$ sudo apt-get install ros-kinetic-python-qt-binding pyqt5-dev pyqt5-dev-tools python-pyqt5.qtmultimedia python-pyqt5
+```
+##### Possible compementary dependencies:
+Depending on how you install ros (desktop-full or just desktop), you may run into the `defaultServiceProvider::requestService(): no service found for - "org.qt-project.qt.mediaplayer` problem. It is a problem probabily related with the qtmultimedia part of the pyqt5 library. A quick solution would be to install qtmultimedia5.examples, by issuing the folowing command in the terminal:
 
-      2. pyqt5-dev
+```sudo apt-get install qtmultimedia5-examples```
 
-      3. pyqt5-dev-tools
-      
-      4. python-pyqt5.qtmultimedia
+## Setup and Usage
 
-      5. python-pyqt5
+Before using the scripts, place in the `config.json` file, that should be placed in the same directory location of the other scripts, the set of label, and their values, that are going to be considered during the annotation. **The current version only allows for mutually exclusive labels, though**. Below, there is an example of a valid `config.json`:
 
-* **MATPLOTLIB**
+```json
+{
+    "Human": {
+                "Activity": ["Walking", "Running", "Jumping"],
+                "Speed": ["Slow", "Normal", "Fast", "Very Fast"],
+                "Force Intensity": ["Weak", "Medium", "Strong"],
+              },
+               
+    "Robot": {
+    			  "Speed": ["Slow", "Normal", "fast"],
+    			  "Is Matching Human?" : ["No","Almost","Yes"]
+    }
+}
+```
 
-      `sudo apt-get install python-matplotlib`
-  
-* **NUMPY**
+Note that if must basically follow the python dictinary sintax. At this point in version, only two nested values are allowed in the config.jason. That is, a more broad feature perspective ("Human", "Robot") and the feature labels themselves with their values being a list of strings (In case of just one value, place it as a single-element list). The called feature perspectives are used for grouping the labels into tabs in the `./annotator.py` interface. This is directed for the case where the annotating data that have multiple tags perspective, for instance, we can annotate the data with the human perspective or doing that taking into consideration the robot behavior in the scene or both.
 
-      `sudo apt-get install python-numpy`
+Run the annotator with `./annotator.py` command for actual data annotation. You can control parameters like: `overlap`: the amount of overlap between consecuteve windows; `windows size`: the size of the data windows in seconds. Note that you should make sure you are using the right image topic for the selection. A image topic selection combo box is present in the interface.
 
-## Execution
+Run the `annotation_parser.py` if you are interested in getting the annotated bag file data from the corresponding generated json file and its associated rosbag file. Load the two using the appropriated buttons, choose the topics you want to extract and press the `Export CSV` button. The program then is going to save csv files with the bag data, given the annotation described in the json file. It generates a csv file for each perspective, taking into account ther corresponding annotations in the jason.
 
-Run the annotator with `./rosbag_annotator_v2.py` command.
+Get involved!
+-------------
 
-Use Left Click on top-left and bottom-right to draw a new bound box.
-Use right click and a drop down context menu shown to annotate or delete the the specific or all bound boxes
-on current frame.
+I am happy to receive bug reports, fixes, documentation enhancements, and other improvements.
 
- 
+Please report bugs via the `github issue` tracker.
+
+Master git repository:
+
+`https://github.com/ewerlopes/rosbag_annotator.git`
+
+If you want to contribute, here is a TODO list of what would be interesting to do:
+
+#### TODO 
+1. prevent program crash if the config.json is not correctly formated.
+2. combine `the annotation_parser.py` into the `annotator.py`. In case we want to generate the CSV directly after completing the annotation in the `annotator.py`.
+3. add multithreading for avoiding getting an unresponsable windows if a function call (like opening a file) takes time to be completed.
+4. allowing for plotting numerical values of selected topics when annotating. This would be useful if we need to make sure the numeral values are behaving in a desired way.
+5. Allowing to ignore taggin a certain windows.
+
+LICENSE
+-------
+The MIT License (MIT)
+
+Copyright (c) 2016 Ewerton Lopes
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Authors
+-------
+These scripts are maintained by Ewerton Lopes and Davide Orrù. Parts of the GUI interface code were originally designed by @Diminal, at this [fork](https://github.com/dimimal/rosbag_annotator). However, his work is a folow up of the work of @dsou in [here](https://github.com/dsgou/rosbag_annotator.git), both developers focusing on the task of annotating video. This project, however, focus on the idea of annotating data (numeral values), with the help of an image data. 
 
