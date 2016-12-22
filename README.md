@@ -4,7 +4,9 @@
 
 This project aims at providing a way to annotate rosbag files by using the method of sliding windows. The annotation procedure is done by using the `annotator.py` script. At the end of the annotation procedure, the script generates a json file with timestamps and other general information about the data tagged. The generated json file, together with its associated bag file is then feed into a second script called the `annotation_parser.py` that extract the actual data from the rosbag into a `csv` file, for further processing.
 
-Note that the objective of this program is to use a video image topic as a guide for tagging numerical data. It is useful, for instance, if you want to work with activity recognition and need to annotate data from numerical sensors, like accelerometers, that were recorded in a given moment in time. In this case, the image topic is used as a guide for tagging numerical data in the same rosbag file, since using only the numerical values would be hard.
+**Note that the objective of this program is to use a video image topic as a guide for tagging numerical data**. It is useful, for instance, if you want to work with activity recognition and need to annotate data from numerical sensors, like accelerometers, that were recorded in a given moment in time. In this case, the image topic is used as a guide for tagging numerical data in the same rosbag file, since using only the numerical values would be hard.
+
+**Currently allows only ros image topics of type `compressedImage` to be loaded.** 
 
 ## DEPENDENCIES
 * **OS:** `Ubuntu 16.04`
@@ -66,6 +68,7 @@ If you want to contribute, here is a TODO list of what would be interesting to d
 3. add multithreading for avoiding getting an unresponsable windows if a function call (like opening a file) takes time to be completed.
 4. allowing for plotting numerical values of selected topics when annotating. This would be useful if we need to make sure the numeral values are behaving in a desired way.
 5. Allowing to ignore taggin a certain windows.
+6. Remove CompressedImage type restriction to the image topics.
 
 LICENSE
 -------
