@@ -56,7 +56,7 @@ Please report bugs via the `github issue` tracker.
 
 Master git repository:
 
-`https://github.com/ewerlopes/rosbag_annotator.git`
+`https://github.com/ewerlopes/rosbag-sliding-windows-annotator.git`
 
 If you want to contribute, here is a TODO list of what would be interesting to do:
 
