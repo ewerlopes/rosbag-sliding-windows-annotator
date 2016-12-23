@@ -9,7 +9,7 @@ This project aims at providing a way to annotate rosbag files by using the metho
 **Currently allows only ros image topics of type `compressedImage` to be loaded.** 
 
 ## DEPENDENCIES
-* **OS:** `Ubuntu 16.04`
+* **OS:** `Ubuntu 16.04LTS`
 * **Python:** `Version 2.7.xx`. You can check your version from terminal, with: `python -V`.
 
 
@@ -47,7 +47,16 @@ Note that if must basically follow the python dictinary sintax. At this point in
 
 Run the annotator with `annotator.py` command for actual data annotation. You can control parameters like: `overlap`: the amount of overlap between consecutive windows; `windows size`: the size of the data windows in seconds. Note that you should make sure you are using the right image topic for the selection. A image topic selection combo box is present in the interface.
 
-Run the `annotation_parser.py` if you are interested in getting the annotated bag file data from the corresponding generated json file and its associated rosbag file. Load the two using the appropriated buttons, choose the topics you want to extract and press the `Export CSV` button. The program then is going to save csv files with the bag data, given the annotation described in the json file. It generates a csv file for each perspective, taking into account ther corresponding annotations in the jason.
+**At the moment, the annotation_parser can be run in two different version. The GUI version allows you to generate csv files one at time. The consoled version is used when you want to generate the csv files from a collection of `.bag` annotation `.jason` files.**
+
+Runnning the `annotation_parser.py --gui` if you are interested in getting the annotated bag file data from the corresponding generated json file and its associated rosbag file. Using the GUI version, load the rosbag file and its associated annotated json file using the appropriated buttons, choose the topics you want to extract and press the `Export CSV` button. The program then is going to save csv files with the bag data, given the annotation described in the json file. It generates one csv file for each perspective, taking into account ther corresponding annotations in the jason.
+
+Running `annotation_parser.py` you run the console version. In this case the current file version receives as parameters the folder where to locate the bag files; the folder where to locate the annotation json files and a folder where to save the csv. In case no parameter is give, the mentioned directories are defaulted to the directory where the script is located. After identifying the files in the given directories the program loops **over ALL at once** and writes their data to their appropriated csv files and location. There are two basic methods from which to inform which data to save:
+
+1. by setting up a python dictionary structure where topic atribute is a key and "ON" or "OFF" are the values, indicating whether you want to save that value. Ommiting a topic attribute on the dictionary is going to make the program ignore it when saving the data. The dictionary should be saved in a file called `parser_config.json`, located in script folder.
+2. Not setting the `parser_config.json` makes the program prompt the user for selecting topics to save each time it loads a rosbag and annotation file pair.
+
+You can also set the mismatch tolerance value for the consoled version. Execute `annotation_parser.py --help` in order to see the available program parameters.
 
 Get involved!
 -------------
@@ -67,8 +76,9 @@ If you want to contribute, here is a TODO list of what would be interesting to d
 2. combine `the annotation_parser.py` into the `annotator.py`. In case we want to generate the CSV directly after completing the annotation in the `annotator.py`.
 3. add multithreading for avoiding getting an unresponsable windows if a function call (like opening a file) takes time to be completed.
 4. allowing for plotting numerical values of selected topics when annotating. This would be useful if we need to make sure the numeral values are behaving in a desired way.
-5. Allowing to ignore taggin a certain windows.
-6. Remove CompressedImage type restriction to the image topics.
+5. allowing to ignore tagging a certain windows.
+6. remove CompressedImage type restriction to the image topics.
+7. making the parser_GUI.py process a collection of .bag/.json files at once.
 
 LICENSE
 -------
