@@ -8,7 +8,7 @@
 # generated as a json file by the annotation.py (for the corresponding bag file, of course).
 # Then, it exports the data as a csv.
 
-import argparse, os, sys
+import argparse, os, sys, time
 from PyQt5.QtWidgets import *
 from parser_gui import AnnotationGUIParser
 from parser_console import AnnotationConsoleParser
@@ -33,7 +33,8 @@ def readArgs():
                         help='the folder containing the annotation json files location.')
     parser.add_argument('-o', '--output_dir', metavar='',
                         dest='output_dir', action='store',
-                        default=os.path.dirname(os.path.abspath(__file__)) + "/annotation_to_csv",
+                        default=os.path.dirname(os.path.abspath(__file__)) + "/annotation_to_csv_"
+                                +time.strftime("%Y-%m-%d--%H-%M-%S"),
                         help='the folder where to save the extracted csv files.')
     parser.add_argument('-t', '--tolerance', metavar='',
                         dest='tolerance', action='store',

@@ -60,6 +60,11 @@ class AnnotationConsoleParser():
         self.bags_dir = bags_dir
         self.annotation_dir = annotation_dir
         self.output_dir = output_dir
+
+        # set where to save
+        os.mkdir(self.output_dir)
+
+        # variable declarations
         self.mismatchTolerance = tolerance  # tolerance value for deviation in the windows slice
         self.hasTopicSelected = False
         self.allBagFiles = self.getAllFilesInDirectory(self.bags_dir, ".bag")
@@ -82,6 +87,12 @@ class AnnotationConsoleParser():
         self.isAutomaticTopicSelection = self.parseConfig()
 
     def parseConfig(self):
+        """Load which topics to save from the parser_config.json. This is an effort
+        to avoiding prompting the user each time a new .bag/.json pair is loaded. It
+        implicitly assumes that each file in the bag_dir and annotation_dir are
+        compatible. However, the compatibility is checked each time a pair of file is
+        loaded.
+        """
         try:
             with open("parser_config.json") as json_file:
                     config_data = json.load(json_file)
@@ -203,6 +214,9 @@ class AnnotationConsoleParser():
                 } if isinstance(dd, dict) else {prefix: dd}
 
     def getUserTopicSelection(self):
+        """Iteratively prompts the user which topics to save based on the annotated
+        bag file topics"""
+
         self.topicSelectionState = {}
         for attr in self.flatten_dict(self.annotationDictionary["topics"]).keys():
             try:
@@ -334,6 +348,7 @@ class AnnotationConsoleParser():
     def writeData(self):
         """This function loops through the self.bag_data["msg] data list and based on
         the windows division (self.windowsInterval), prints the data the csv file."""
+
         self.logger.info("Aligning different time buffers...")
         # getting a combined timeline using the topics timebuffers.
         self.timeline = {}  # combined time line
@@ -354,6 +369,7 @@ class AnnotationConsoleParser():
             self.sorted_timeline[s_name] = sorted(combined_buffer)
 
             try:
+                # assert size of lists, debugging purposes.
                 assert len(self.sorted_timeline[s_name]) == len(set(self.timeline[s_name].keys()))
             except:
                 self.logger.error(traceback.format_exc())
@@ -441,26 +457,26 @@ class AnnotationConsoleParser():
             self.logger.error(traceback.format_exc())
 
     def setOutputCSVFiles(self):
-        """Opens a dialog windows and asks the general filename
-        used for saving the data. It generates as much files as those
-        defined in the json source field. In other words, one for each tab
+        """Define file streams for saving the data. It generates as much files as those
+        defined in the annotation ".json" source field. In other words, one for each tab
         (feature perspective) used for tagging the data."""
 
-        # defaults the name of the output file(s) to the name of the bag + "csv".
-        defaultname = self.current_bagName.split("/")[-1][:-4]
+        # defaults the core name of the output file(s) to the name of the output_dir + bagName.
+        defaultname = os.path.join(self.output_dir,self.current_bagName.split("/")[-1][:-4])
 
         try:
-            #variable that holds the outputfiles for each perspective. Type: dictionary.
+            # variable that holds the outputfiles for each perspective. Type: dictionary.
             self.output_filenames = {}
             #loop through perspectives.
             for s_name in self.annotationDictionary["sources"]:
-                # append to the filename the feature perspective name
+                # append to the filename the feature perspective name and csv extension.
                 filename = defaultname + "_" + s_name + ".csv"
-                # set the "Exported to" text area
+
                 self.logger.info("Files generated: " + filename)
                 # set output files
                 self.output_filenames[s_name] = open(filename, 'wa')
-                # define the headers for the csv files (variable, column, names).
+
+                # define the headers for the csv files (annotated feature names + selected topics).
                 self.csv_writers[s_name] = csv.DictWriter(self.output_filenames[s_name],
                                                           ["time"] + self.annotationDictionary[s_name]["labels"]
                                                           + self.topicSelectionONHeaders)
@@ -476,7 +492,8 @@ class AnnotationConsoleParser():
         self.writeData()
 
     def errorMessages(self,index):
-        """Defines error messages via index parameter"""
+        """Defines error messages via index parameter. Useful for avoiding
+        replication of common error messages."""
         msg = None
 
         if index == 0:
@@ -496,52 +513,94 @@ class AnnotationConsoleParser():
         self.logger.error(msg)
 
     def getMatchedFiles(self):
-
+        """Counts the files in the bag_dir and annotation dir. Return a list
+        of files that match by name. In other words, a list of files that have
+        the same name, but one being .json and other .bag."""
+        #TODO : THIS METHOD MAY BE FRAGILE! CORRECT FOR POSSIBLE ERROR SITUATIONS.
+        # remove extensions to enable filename comparison.
         bag_without_ext = [t[:-4] for t in self.allBagFiles if t.endswith(".bag")]
         ann_without_ext = [t[:-5] for t in self.allJsonFiles if t.endswith(".json")]
+        # count file occurrences
         cnt = Counter(bag_without_ext + ann_without_ext)
         return [k for k in cnt if cnt[k] ==2]
 
     def run(self):
-        """Run over all bag and json files."""
+        """Run over all bag and json files. Writing the data to the corresponding file"""
 
+        listOfIncompatible = []
+        listOfFailedOpening = []
+
+        # get the list of ".json" ".bag" pairs (theirs file
+        # name should match, be the same).
         matched_files = self.getMatchedFiles()
         self.logger.info("Files found: " + json.dumps([i+".bag" for i in matched_files]+
                                      [i+".json" for i in matched_files],indent=4))
 
-        for compatibleFile in matched_files:
-            annotationFile = compatibleFile+".json"
-            bagFile = compatibleFile +".bag"
+        # Run over the files what are matched (that is, have a version ".json" and a version ".bag")
+        for dataFile in matched_files:
+            # reconstruct file extentions.
+            annotationFile = dataFile+".json"
+            bagFile = dataFile +".bag"
             print ''
+
             self.logger.info("Exporting data...")
+            # if openning of the annotation files is successful...
             if self.openAnnotationFile(os.path.join(self.annotation_dir,annotationFile)):
+                #load the annotation data for the current annotation json file.
                 self.loadAnnotationData()
 
+                # open the bag file.
                 if self.openBagFile(os.path.join(self.bags_dir, bagFile)):
-                    # Gets each topics to save.
+                    # load bag data.
                     self.loadBagData()
 
                     self.logger.info("Performing compatibility test between: " + annotationFile + " and " + bagFile)
+                    # verifies compatibility, that is whether the files have the topics matched.
                     if self.areFileCompatible():
                         self.logger.info("PASSED.")
                     else:
-                        self.logger.error("FAILED!!! Files topics do not match.")
+                        self.logger.error("FAILED!!! Files topics do not match!, skipping file pair.")
+                        # skip to next file in case current files
+                        # are not compatible.
+                        listOfIncompatible.append(dataFile)
+                        continue
 
+                    # if files are compatible and the user has not load which topic
+                    # to save via the parser_config.json... Ask the user to enter the topics
+                    # to save manually.
                     if not self.isAutomaticTopicSelection:
-                        self.logger.critical("Not automatic")
+                        # keep prompting selection to the user in case
+                        # he did not select the topics to save.
                         while not self.hasTopicSelected:
                             self.getUserTopicSelection()
+                            # print message in case he keeps not selecting the topics.
                             if not self.hasTopicSelected:
                                 self.logger.warn("You must select at least one topic to save.")
                                 print ''
+                        # set up output csv files and write data to them.
                         self.setOutputCSVFiles()
                     else:
+                        # write data directly in case the user has set up the parser_config.jason
                         self.setOutputCSVFiles()
 
-
-
-                    self.reset()  # reset important variable.
+                    # reset important variable, for allowing new
+                    # ".json" and ".bag" to be loaded.
+                    self.reset()
                 else:
+                    # skip to next file in case something go
+                    # wrong while opening bag file.
+                    self.logger.error("FAILED to open {} bag file! Skipping file pair.".format(dataFile))
+                    listOfFailedOpening.append(dataFile)
                     continue
             else:
-               continue
+                # skip to next file in case something go
+                # wrong withe opening annotation file.
+                self.logger.error("FAILED to open {} annotation file! Skipping file pair.".format(dataFile))
+                listOfFailedOpening.append(dataFile)
+                continue
+
+            print ''
+            print ''
+            self.logger.info("Program terminated with {} ({}) failed attempt(s) to open files and {} ({}) non-compatible "
+                             ".bag/.json files pairs".format(len(listOfFailedOpening), str(listOfFailedOpening),
+                                                             len(listOfIncompatible), str(listOfIncompatible)))
