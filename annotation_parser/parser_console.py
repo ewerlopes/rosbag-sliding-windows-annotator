@@ -10,6 +10,7 @@
 
 
 import json
+import time
 import copy, os, sys, csv, yaml
 import rosbag
 import logging
@@ -54,6 +55,17 @@ class AnnotationConsoleParser():
         ch.setFormatter(formatter)
         # add ch to logger
         self.logger.addHandler(ch)
+
+
+        ### Log to file setup ####
+        # create logger with 'spam_application'
+        self.loggerToFile = logging.getLogger(__name__+' logToFile')
+        # create file handler which logs even debug messages
+        fh = logging.FileHandler(time.strftime(__name__+"_%Y-%m-%d--%H-%M-%S")+'.log')
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(logging.Formatter(format, date_format))
+        self.loggerToFile.addHandler(fh)
+
         #########################
 
         # setting variables
@@ -133,6 +145,7 @@ class AnnotationConsoleParser():
             self.logger.info("Annotation file: " + jfile + " <-- LOADED!")
         except:
             self.logger.error("Error when opening annotation json file: "+jfile)
+            self.loggerToFile.error(traceback.format_exc())
             return False
         return True
 
@@ -164,6 +177,7 @@ class AnnotationConsoleParser():
         except:
             self.errorMessages(4)
             self.logger.error("Filename: " + bfile + '\n' + traceback.format_exc())
+            self.loggerToFile.error(traceback.format_exc())
             return False
 
     def loadBagData(self):
@@ -535,6 +549,8 @@ class AnnotationConsoleParser():
         matched_files = self.getMatchedFiles()
         self.logger.info("Files found: " + json.dumps([i+".bag" for i in matched_files]+
                                      [i+".json" for i in matched_files],indent=4))
+        self.loggerToFile.info("Files found: " + json.dumps([i + ".bag" for i in matched_files] +
+                                                      [i + ".json" for i in matched_files], indent=4))
 
         # Run over the files what are matched (that is, have a version ".json" and a version ".bag")
         for dataFile in matched_files:
@@ -590,12 +606,14 @@ class AnnotationConsoleParser():
                     # skip to next file in case something go
                     # wrong while opening bag file.
                     self.logger.error("FAILED to open {} bag file! Skipping file pair.".format(dataFile))
+                    self.loggerToFile.error("FAILED to open {} bag file! Skipping file pair.".format(dataFile))
                     listOfFailedOpening.append(dataFile)
                     continue
             else:
                 # skip to next file in case something go
                 # wrong withe opening annotation file.
                 self.logger.error("FAILED to open {} annotation file! Skipping file pair.".format(dataFile))
+                self.loggerToFile.error("FAILED to open {} annotation file! Skipping file pair.".format(dataFile))
                 listOfFailedOpening.append(dataFile)
                 continue
 
