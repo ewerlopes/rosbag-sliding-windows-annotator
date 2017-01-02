@@ -1,12 +1,12 @@
 # Rosbag Sliding Window Annotator
-![Language](https://img.shields.io/badge/Python-2.7-blue.svg) ![ROS](https://img.shields.io/badge/ROS-Kinetic%20Kame-brightgreen.svg) ![Ubuntu](https://img.shields.io/badge/Ubuntu-16.04LTS-orange.svg) 
+![Language](https://img.shields.io/badge/Python-2.7-blue.svg) ![ROS](https://img.shields.io/badge/ROS-Kinetic%20Kame-brightgreen.svg) ![Ubuntu](https://img.shields.io/badge/Ubuntu-16.04LTS-orange.svg)
 ![Version](https://img.shields.io/badge/version-1.0-brightgreen.svg) ![License MIT](https://img.shields.io/cocoapods/l/AFNetworking.svg)
 
 This project aims at providing a way to annotate rosbag files by using the method of sliding windows. The annotation procedure is done by using the `annotator.py` script. At the end of the annotation procedure, the script generates a json file with timestamps and other general information about the data tagged. The generated json file, together with its associated bag file is then feed into a second script called the `annotation_parser.py` that extract the actual data from the rosbag into a `csv` file, for further processing.
 
 **Note that the objective of this program is to use a video image topic as a guide for tagging numerical data**. It is useful, for instance, if you want to work with activity recognition and need to annotate data from numerical sensors, like accelerometers, that were recorded in a given moment in time. In this case, the image topic is used as a guide for tagging numerical data in the same rosbag file, since using only the numerical values would be hard.
 
-**Currently allows only ros image topics of type `compressedImage` to be loaded.** 
+**Currently allows only ros image topics of type `compressedImage` to be loaded.**
 
 ## DEPENDENCIES
 * **OS:** `Ubuntu 16.04LTS`
@@ -35,7 +35,7 @@ Before using the scripts, place in the `config.json` file, that should be placed
                 "Speed": ["Slow", "Normal", "Fast", "Very Fast"],
                 "Force Intensity": ["Weak", "Medium", "Strong"],
               },
-               
+
     "Robot": {
     			  "Speed": ["Slow", "Normal", "fast"],
     			  "Is Matching Human?" : ["No","Almost","Yes"]
@@ -58,6 +58,9 @@ Running `annotation_parser.py` you run the console version. In this case the cur
 
 You can also set the mismatch tolerance value for the consoled version. Execute `annotation_parser.py --help` in order to see the available program parameters.
 
+## Debugging
+The current version also includes debugging script. In the folder `debug` you can use the `debug.py` file for printing the summary statistics for the generated csv data files. Use `./debug.py --help` in the terminal in order to know more.
+
 Get involved!
 -------------
 
@@ -71,7 +74,7 @@ Master git repository:
 
 If you want to contribute, here is a TODO list of what would be interesting to do:
 
-#### TODO 
+#### TODO
 1. prevent program crash if the config.json is not correctly formated.
 2. combine `the annotation_parser.py` into the `annotator.py`. In case we want to generate the CSV directly after completing the annotation in the `annotator.py`.
 3. add multithreading for avoiding getting an unresponsable windows if a function call (like opening a file) takes time to be completed.
@@ -94,5 +97,4 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 Authors
 -------
-These scripts are maintained by Ewerton Lopes and Davide Orrù. Parts of the GUI interface code were originally designed by @Diminal, at this [fork](https://github.com/dimimal/rosbag_annotator). However, his work is a folow up of the work of @dsou in [here](https://github.com/dsgou/rosbag_annotator.git), both developers focusing on the task of annotating video. This project, however, focus on the idea of annotating data (numeral values), with the help of an image data. 
-
+These scripts are maintained by Ewerton Lopes and Davide Orrù. Parts of the GUI interface code were originally designed by @Diminal, at this [fork](https://github.com/dimimal/rosbag_annotator). However, his work is a folow up of the work of @dsou in [here](https://github.com/dsgou/rosbag_annotator.git), both developers focusing on the task of annotating video. This project, however, focus on the idea of annotating data (numeral values), with the help of an image data.
