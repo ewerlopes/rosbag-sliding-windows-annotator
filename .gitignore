@@ -1,6 +1,5 @@
 *.bag
 *.idea*
-*.csv
 *.avi
 *.pyc
 .DS_Store
