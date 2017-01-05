@@ -59,7 +59,7 @@ Running `annotation_parser.py` you run the console version. In this case the cur
 You can also set the mismatch tolerance value for the consoled version. Execute `annotation_parser.py --help` in order to see the available program parameters.
 
 ## Debugging
-The current version also includes debugging script. In the folder `debug` you can use the `debug.py` file for printing the summary statistics for the generated csv data files. Use `./debug.py --help` in the terminal in order to know more.
+The current version also includes a debugging script. In the folder `debug` you can use the `data_summary.py` file for printing the summary statistics for the generated csv data files. Run `./data_summary.py --help` in the terminal in order to know more. Additionaly, `test_data_summary.py` is used for unittesting the data_summary script. The folder also includes a `csv_test.csv` file.
 
 Get involved!
 -------------

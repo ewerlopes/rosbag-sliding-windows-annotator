@@ -5,14 +5,13 @@
 import csv
 import sys
 import os
-import time
 import traceback
 import json
-from itertools import groupby
 import numpy as np
 import logging
 import argparse
 from collections import defaultdict, Counter
+from tabulate import tabulate
 
 ### try to load color module for logger ####
 try:
@@ -81,17 +80,18 @@ def getListOfFiles(directory, extension):
     return allFiles
 
 
-def getCSV(filename, referenceColumn="time", windows_separator=""):
+def getCSV(filename, reference_column="time", windows_separator=""):
     """
     Open a csv file and return the data in a dictionary where each key is
     a corresponding csv column name and each value for the key correspond to
     a list of the windows data. Each data windows is a list.
 
-    @param filename             :   the name of the csv file to open.
-    @param windows_separator    :   the token that separates the windows in the csv file.
+    :param filename             :   the name of the csv file to open.
+    :reference_column           :   the column name used to analyse the data.
+    :param windows_separator    :   the token that separates the windows in the csv file.
                                      the default "" correspond to blank csv line. In the csv
                                      file, something like ",,,,,".
-    @:return                    :   the data as a dictionary.
+    :return                    :   the data as a dictionary.
     """
     reader = csv.DictReader(open(filename))
     csv_data = {}
@@ -99,11 +99,15 @@ def getCSV(filename, referenceColumn="time", windows_separator=""):
         for col, value in row.iteritems():
             csv_data.setdefault(col, []).append(value)
 
-    if referenceColumn not in csv_data.keys():
-        raise ValueError('Reference column name {} not in the {} csv file. Aborting.'.format(referenceColumn, filename))
+    if reference_column not in csv_data.keys():
+        raise ValueError('Reference column name {} not in the {} csv file. Aborting.'.format(reference_column, filename))
 
-    # reference = [list(group) for k, group in groupby(result[col], lambda x: x == windows_separator) if not k]
-    reference_points = [i for i, v in enumerate(csv_data[referenceColumn]) if v == windows_separator]
+    # get windows separation line numbers.
+    reference_points = [i for i, v in enumerate(csv_data[reference_column]) if v == windows_separator]
+
+    if not reference_points:
+        raise ValueError('Windows separator has not been found in {} csv file. Aborting.'.format(reference_column, filename))
+
     result = defaultdict(list)
     for i, r in enumerate(reference_points):
         for col in csv_data.keys():
@@ -112,38 +116,31 @@ def getCSV(filename, referenceColumn="time", windows_separator=""):
             else:
                 result[col].append([csv_data[col][v] for v in range(reference_points[i - 1] + 1, r)])
 
-    # TODO: Make a unittest.
-    for key in result.keys():
-        restored = []
-        for l in result[key]:
-            restored += l + [""]
-        assert restored == csv_data[key]
-
     return result
 
 
-
-def getStatistics(data, referenceColumn="time", compareWith=50):
+def getStatistics(data, reference_column="time", compareWith=50):
     """Checks the amount of overlap between windows
-    @param windows          :   the list of windows data.
-    @param compareWith      :   the percentage from which to compare
+    :param data          :   the csv data.
+    :param reference_column : used to get statistics.
+    :param compareWith      :   the percentage from which to compare
                                  the amount of overlap.
-    @:return overlaps       :   a list where each value corresponds to
+    :return overlaps       :   a list where each value corresponds to
                                  the amount of overlap for the windows.
-    @:return meanOfOverlaps : the mean overlap value
-    @:return meanDeviation  : the mean deviation value.
+    :return meanOfOverlaps : the mean overlap value
+    :return meanDeviation  : the mean deviation value.
     """
     overlaps_diff = []
     overlaps = []
     sample_info = {}
     s_info = defaultdict(list)
-    n_windows = len(data[referenceColumn])
+    n_windows = len(data[reference_column])
     for i in range(n_windows):
         if i != n_windows - 1:
-            if data[referenceColumn][i] == [] or data[referenceColumn][i+1] == []:
+            if data[reference_column][i] == [] or data[reference_column][i+1] == []:
                 raise ValueError("\tFile has empty tagged windows. Skipping...")
-            overlap = len(set(data[referenceColumn][i]) & set(data[referenceColumn][i + 1])) /      \
-                      float(len(set(data[referenceColumn][i + 1]))) * 100
+            overlap = len(set(data[reference_column][i]) & set(data[reference_column][i + 1])) / \
+                      float(len(set(data[reference_column][i + 1]))) * 100
             overlaps.append(overlap)
             overlaps_diff.append(overlap - compareWith)
 
@@ -153,7 +150,7 @@ def getStatistics(data, referenceColumn="time", compareWith=50):
     for k in data.keys():
         sample_info[k] = np.mean(s_info[k])
 
-    return overlaps,n_windows, sample_info, np.mean(overlaps), np.mean(overlaps_diff)
+    return overlaps, n_windows, sample_info, np.mean(overlaps), np.mean(overlaps_diff)
 
 
 if __name__ == "__main__":
@@ -161,11 +158,13 @@ if __name__ == "__main__":
     args = readArgs()
     files = getListOfFiles(args.csv_dir, ".csv")
     logger.info("\nFiles found:\n" + json.dumps(files, indent=4))
+    logger.info("Performing evaluation on the batch of files...")
 
     total_overlap = []
     total_diff = []
     total_windows = []
     nb_samples_by_features = defaultdict(list)
+    csv_data = None
     for f in files:
         logger.info("Loading " + f)
 
@@ -191,12 +190,19 @@ if __name__ == "__main__":
             total_overlap.append(avg_overlap)
             total_diff.append(avg_diff)
             total_windows.append(n_windows)
+            for k in csv_data.keys():
+                nb_samples_by_features[k].append(sample_info[k])
             logger.info("\tNumber of windows: {}".format(len(csv_data)))
             logger.info("\tAverage Overlap: {:.2f}%".format(avg_overlap))
             logger.info("\tAvg difference: {:.2f}%".format(avg_diff))
-            logger.info("\t# samples per windows: {}".format(json.dumps(sample_info,indent=4)))
+            logger.info("\tAvg samples per windows: {}".format(json.dumps(sample_info,indent=4)))
     print "\nOVERALL SUMMARY:"
-    logger.info("* Total Average #Windows: {:.2f}".format(np.mean(total_windows)))
-    logger.info("* Total Average Overlap: {:.2f}%".format(np.mean(total_overlap)))
-    logger.info("* Total Avg difference: {:.2f}%".format(np.mean(total_diff)))
-    logger.info("* Total Avg number of samples: {}".format(json.dumps(nb_samples_by_features, indent=4)))
+    print "Avg #Windows: \t{:.2f}".format(np.mean(total_windows))
+    print "Avg Overlap : \t{:.2f}%".format(np.mean(total_overlap))
+    print "Overlap Std : \t{:.2f}%".format(np.std(total_overlap))
+    print "Avg deviation: {:.2f}%".format(np.mean(total_diff))
+    print "Deviation Std: \t{:.2f}%".format(np.std(total_diff))
+    for k in csv_data.keys():
+        nb_samples_by_features[k] = (np.mean(nb_samples_by_features[k]), np.std(nb_samples_by_features[k]))
+    print tabulate([(k,"{:.2f}".format(v[0]),"{:.2f}".format(v[1])) for k,v in nb_samples_by_features.items() if k != "time"],
+                   headers=["Topic", "Avg #Samples per Windows", "Std"])
