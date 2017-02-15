@@ -669,7 +669,7 @@ class AnnotationGUIParser(QWidget):
             if insertedName[0] != '':
                 ###### Process the filename
                 # removing .csv extension. This is done because we append to the file
-                # the name of the feature perpective (tab name in the annotator.py)
+                # the name of the feature perpective (tab name in the visualizer.py)
                 if insertedName[0].endswith(".csv"):
                     filename = insertedName[0][:-4]     #remove .csv
                 else:
