@@ -220,10 +220,12 @@ class VideoPlayer(QWidget):
         self.label_configs = self.parseConfig()
         self.data = {}
         self.types = {}          # This loads the type of objects in the treeviewer. Used for saying which topic to save.
-        self.cluster_info = "./segments.pkl"
-        fileObject = open(self.cluster_info, 'r')
+        self.dataset_info = "./segments.pkl"
+
+        fileObject = open(self.dataset_info, 'r')
         # load the object from the file into var b
         self.frame = pickle.load(fileObject)
+        self.dataset_size = self.frame.shape[0]
         self.frame['tag'] = ""
         self.isBagLoaded = False
         self.model_data = None
@@ -263,11 +265,13 @@ class VideoPlayer(QWidget):
         self.saveButton.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton))
         self.saveButton.clicked.connect(self.handleSave)
         self.isUnsave = False
+        self.ntag_performed = 0
 
         self.playButton = QPushButton("Play")
         self.playButton.setEnabled(False)
         self.playButton.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
         self.playButton.clicked.connect(self.play)
+
 
         self.nexstDWindowButton = QPushButton("Next")
         self.nexstDWindowButton.setEnabled(False)
@@ -283,6 +287,11 @@ class VideoPlayer(QWidget):
         self.reloadButton.setEnabled(False)
         self.reloadButton.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
         self.reloadButton.clicked.connect(self.reload)
+
+        self.delTagButton = QPushButton("Delete Tag")
+        self.delTagButton.setEnabled(False)
+        self.delTagButton.setIcon(self.style().standardIcon(QStyle.SP_DialogCancelButton))
+        self.delTagButton.clicked.connect(self.handleRemoveTag)
 
         ### VIDEO SLIDER ###
         self.positionSlider = QSlider(Qt.Horizontal)
@@ -306,7 +315,7 @@ class VideoPlayer(QWidget):
         self.duration_label = QLabel("--:--")
         self.repeat_cbox_label = QLabel("set_repeat")
         self.save_label = QLabel("Save to:")
-
+        self.percen_annotated = QLabel('0% tagged!')
 
         #Create overlap dropdown list
         self.files_combo_box = QComboBox()
@@ -434,7 +443,8 @@ class VideoPlayer(QWidget):
         #self.control_panel_layout.addWidget(self.tree_of_topics)
         self.control_panel_layout.addLayout(self.tab_layout)
         self.cpanel_internal_layout2child.addWidget(self.tableWidget)
-
+        self.cpanel_internal_layout2child.addWidget(self.percen_annotated)
+        self.cpanel_internal_layout2child.addWidget(self.delTagButton)
         self.cpanel_internal_layout1.addLayout(self.cpanel_internal_layout1child)
         self.cpanel_internal_layout1.addLayout(self.cpanel_internal_layout2child)
         self.control_panel_layout.addLayout(self.cpanel_internal_layout1)
@@ -659,6 +669,23 @@ class VideoPlayer(QWidget):
         self.saveButton.setText('Save Progress')
         logger.info('Changes saved to file.')
 
+    def handleRemoveTag(self):
+        #print tag_data
+        index = self.tableWidget.selectedIndexes()[0]
+        index = index.row()
+        d = self.model_data.iloc[[index]]
+        self.frame.loc[d.index.tolist()[0], 'tag'] = ""
+        self.model_data = self.frame[['x', 'y', 'z', 'file', 'align', 'tag']].loc[self.frame['file'] == d['file'].tolist()[0]]
+        self.tableWidget.setModel(PandasModel(self.model_data))
+        self.tableWidget.selectRow(index)
+        self.tableWidget.show()
+        self.isUnsave = True
+        if self.ntag_performed != 0:
+            self.ntag_performed -= 1
+        self.saveButton.setText('Save Progress*')
+        self.percen_annotated.setText('{:.2f} % tagged!'.format((self.ntag_performed*100)/self.dataset_size))
+        self.percen_annotated.setStyleSheet('color:green')
+
     #Print out the ID & text of the checked radio button
     def handleTag(self):
         for t_name in self.label_group_boxes.keys():
@@ -679,7 +706,10 @@ class VideoPlayer(QWidget):
         self.tableWidget.selectRow(index)
         self.tableWidget.show()
         self.isUnsave = True
+        self.ntag_performed += 1
         self.saveButton.setText('Save Progress*')
+        self.percen_annotated.setText('{:.2f} % tagged!'.format((self.ntag_performed*100)/self.dataset_size))
+        self.percen_annotated.setStyleSheet('color:green')
 
 
         #     logger.debug(json.dumps(tag_data,indent=4))
@@ -779,8 +809,7 @@ class VideoPlayer(QWidget):
             self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(self.bagfileName[:-4]+".avi")))
             self.playButton.setEnabled(True)
             self.saveButton.setEnabled(True)
-            self.previousDWindowButton.setEnabled(True)
-            self.nexstDWindowButton.setEnabled(True)
+            self.delTagButton.setEnabled(True)
             for b in self.tag_buttons.keys():
                 self.tag_buttons[b].setEnabled(True)
 

@@ -1,9 +1,6 @@
 {
     "Player": {
-                "Activity": ["Very high","High","Medium","Low","Very low"],
-                "Expectation": ["Very high","High","Medium","Low","Very low"],
-                "Control": ["Very high","High","Medium","Low","Very low"],
-                "High_level": ["Sprinting","Moving", "Blocking", "Dodging","Inactive"]
+                "High_level": ["Sprinting","Running", "Stop-Running", "Locally-Moving", "Walking", "Blocking-Dodging","Inactive"]
                },
                
     "Robot": {}
