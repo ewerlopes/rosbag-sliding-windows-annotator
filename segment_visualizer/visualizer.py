@@ -656,6 +656,7 @@ class VideoPlayer(QWidget):
         pickle.dump(self.frame, file_obj)
         file_obj.close()
         self.isUnsave = False
+        self.saveButton.setText('Save Progress')
         logger.info('Changes saved to file.')
 
     #Print out the ID & text of the checked radio button
@@ -672,12 +673,13 @@ class VideoPlayer(QWidget):
         index = self.tableWidget.selectedIndexes()[0]
         index = index.row()
         d = self.model_data.iloc[[index]]
-        self.frame.loc[d.index.tolist()[0], 'tag'] = 'h'
+        self.frame.loc[d.index.tolist()[0], 'tag'] = str(tag_data)
         self.model_data = self.frame[['x', 'y', 'z', 'file', 'align', 'tag']].loc[self.frame['file'] == d['file'].tolist()[0]]
         self.tableWidget.setModel(PandasModel(self.model_data))
         self.tableWidget.selectRow(index)
         self.tableWidget.show()
         self.isUnsave = True
+        self.saveButton.setText('Save Progress*')
 
 
         #     logger.debug(json.dumps(tag_data,indent=4))
