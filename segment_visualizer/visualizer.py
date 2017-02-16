@@ -224,6 +224,7 @@ class VideoPlayer(QWidget):
         fileObject = open(self.cluster_info, 'r')
         # load the object from the file into var b
         self.frame = pickle.load(fileObject)
+        self.frame['tag'] = ""
         self.isBagLoaded = False
         self.model_data = None
         self.bag_dir = '/home/ewerlopes/developer/rosbag-sliding-windows-annotator/all_tagged_2017_01_18'
@@ -256,6 +257,12 @@ class VideoPlayer(QWidget):
         # Buttons
         self.openButton = QPushButton("Load cluster data")
         self.openButton.clicked.connect(self.openFile)
+
+        self.saveButton = QPushButton("Save Progress")
+        self.saveButton.setEnabled(False)
+        self.saveButton.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton))
+        self.saveButton.clicked.connect(self.handleSave)
+        self.isUnsave = False
 
         self.playButton = QPushButton("Play")
         self.playButton.setEnabled(False)
@@ -298,7 +305,7 @@ class VideoPlayer(QWidget):
         self.logOutput_label = QLabel("Log area:")
         self.duration_label = QLabel("--:--")
         self.repeat_cbox_label = QLabel("set_repeat")
-        self.files_combox_label = QLabel("Select File:")
+        self.save_label = QLabel("Save to:")
 
 
         #Create overlap dropdown list
@@ -325,9 +332,21 @@ class VideoPlayer(QWidget):
         self.scroll_bar = self.logOutput.verticalScrollBar()
         self.scroll_bar.setValue(self.scroll_bar.maximum())
 
+        # Create log area
+        self.save = QTextEdit()
+        self.save.setMaximumHeight(22)
+        self.save_scroll = self.save.verticalScrollBar()
+        self.save_scroll.setValue(self.save_scroll.minimum())
+        self.save_font = self.save.font()
+        self.save_font.setFamily("Courier")
+        self.save_font.setPointSize(14)
+        self.save.moveCursor(QTextCursor.End)
+        self.save.setCurrentFont(self.save_font)
+        self.save.document().setPlainText("annotation.pkl")
+
         ### REDIRECT CONSOLE OUTPUT ####
-        #XStream.stdout().messageWritten.connect(self.logOutput.append)
-        #XStream.stderr().messageWritten.connect(self.logOutput.append)
+        XStream.stdout().messageWritten.connect(self.logOutput.append)
+        XStream.stderr().messageWritten.connect(self.logOutput.append)
 
         # Create tabs
         self.tab_container = QTabWidget()
@@ -368,15 +387,16 @@ class VideoPlayer(QWidget):
 
         #### Control panel buttons ###
         self.tableWidget = QTableView()
-        self.table_model = PandasModel(self.frame[['x', 'y', 'z', 'file', 'align']])
+
+        self.table_model = PandasModel(self.frame[['x', 'y', 'z', 'file', 'align', 'tag']])
         self.tableWidget.doubleClicked.connect(self.on_click)
 
-        self.by_files_button = QRadioButton('By files')
+        self.by_files_button = QRadioButton('Select File')
         self.by_files_button.toggled.connect(self.byFileRButtonHandle)
         self.by_files_button.setChecked(True)
 
-        self.by_cluster_button = QRadioButton('By cluster')
-        self.by_cluster_button.toggled.connect(self.byClusterRButtonHandle)
+        self.all_button = QRadioButton('All')
+        self.all_button.toggled.connect(self.allRButtonHandle)
 
         self.control_panel_groupbox = QGroupBox(title='Control panel')
         self.control_panel_groupbox.setFlat(True)
@@ -384,7 +404,7 @@ class VideoPlayer(QWidget):
         self.control_panel_groupbox.setLayout(self.control_panel_layout)
         self.cpanel_internal_layout1 = QVBoxLayout()
         self.cpanel_internal_layout1child = QHBoxLayout()
-        self.cpanel_internal_layout2child = QHBoxLayout()
+        self.cpanel_internal_layout2child = QVBoxLayout()
 
         self.control_button_layout0.addWidget(self.videoWidget)
         self.control_button_layout0.addLayout(self.matplot_layout)
@@ -396,6 +416,7 @@ class VideoPlayer(QWidget):
         self.control_button_layout1.addWidget(self.positionSlider)
         self.control_button_layout1.addWidget(self.duration_label)
         #self.control_button_layout2.addWidget(self.previousDWindowButton)
+        self.control_button_layout2.addWidget(self.saveButton)
         self.control_button_layout2.addWidget(self.playButton)
         #self.control_button_layout2.addWidget(self.nexstDWindowButton)
         self.control_button_layout2.addWidget(self.topics_combo_label)
@@ -404,10 +425,12 @@ class VideoPlayer(QWidget):
         self.control_button_layout4.addWidget(self.logOutput_label)
         self.control_button_layout4.addWidget(self.logOutput)
         self.tab_layout.addWidget(self.tab_container)
+        self.cpanel_internal_layout1child.addWidget(self.all_button)
         self.cpanel_internal_layout1child.addWidget(self.by_files_button)
-        self.cpanel_internal_layout1child.addWidget(self.by_cluster_button)
-        self.cpanel_internal_layout1child.addWidget(self.files_combox_label)
+        #self.cpanel_internal_layout1child.addWidget(self.files_combox_label)
         self.cpanel_internal_layout1child.addWidget(self.files_combo_box)
+        self.cpanel_internal_layout2child.addWidget(self.save_label)
+        self.cpanel_internal_layout2child.addWidget(self.save)
         #self.control_panel_layout.addWidget(self.tree_of_topics)
         self.control_panel_layout.addLayout(self.tab_layout)
         self.cpanel_internal_layout2child.addWidget(self.tableWidget)
@@ -498,12 +521,12 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.setNotifyInterval(1)
 
     def createFileTable(self, file_name):
-        self.model_data = self.frame[['x', 'y', 'z','file','align']].loc[self.frame['file'] == file_name]
+        self.model_data = self.frame[['x', 'y', 'z', 'file', 'align', 'tag']].loc[self.frame['file'] == file_name]
         self.tableWidget.setModel(PandasModel(self.model_data))
         self.tableWidget.show()
 
     def createClusterTable(self):
-        self.model_data = self.frame[['x', 'y', 'z','file','align']]
+        self.model_data = self.frame[['x', 'y', 'z', 'file', 'align', 'tag']]
         self.tableWidget.setModel(PandasModel(self.model_data))
         self.tableWidget.show()
 
@@ -523,7 +546,7 @@ class VideoPlayer(QWidget):
         self.updateSliderPosition(self.bag_buffers['robogame/imu_state']['time_buffer_secs'][self.alignment_begin_at]*1000)
         #self.plotTopicData()
 
-    def byClusterRButtonHandle(self):
+    def allRButtonHandle(self):
         self.files_combo_box.setEnabled(False)
         self.createClusterTable()
 
@@ -628,9 +651,15 @@ class VideoPlayer(QWidget):
 
         return hasOneChecked
 
+    def handleSave(self):
+        file_obj = open(self.save.toPlainText(), 'wb')
+        pickle.dump(self.frame, file_obj)
+        file_obj.close()
+        self.isUnsave = False
+        logger.info('Changes saved to file.')
+
     #Print out the ID & text of the checked radio button
     def handleTag(self):
-
         for t_name in self.label_group_boxes.keys():
             tag_data = {}
             for label in self.label_options[t_name].keys():
@@ -638,34 +667,44 @@ class VideoPlayer(QWidget):
                     if self.label_options[t_name][label][i].isChecked():
                         #logger.debug(self.label_button_groups[t_name][label].checkedId())
                         tag_data[label] = self.label_options[t_name][label][i].text()
-            current_windows = int(self.windows_combo_box.currentText())
+
+        #print tag_data
+        index = self.tableWidget.selectedIndexes()[0]
+        index = index.row()
+        d = self.model_data.iloc[[index]]
+        self.frame.loc[d.index.tolist()[0], 'tag'] = 'h'
+        self.model_data = self.frame[['x', 'y', 'z', 'file', 'align', 'tag']].loc[self.frame['file'] == d['file'].tolist()[0]]
+        self.tableWidget.setModel(PandasModel(self.model_data))
+        self.tableWidget.selectRow(index)
+        self.tableWidget.show()
+        self.isUnsave = True
 
 
-            logger.debug(json.dumps(tag_data,indent=4))
-
-            if current_windows in self.listOftaggedWindows:         # if an annotation for the windows already exists
-                msg = "An anottation was already given to this window of data for the '" \
-                      +str(t_name) + "' tab. Do you want to overwrite it?"
-                reply = QMessageBox.question(self, 'Confirm Overwrite',msg, QMessageBox.Yes, QMessageBox.No)
-                if reply == QMessageBox.Yes:
-                    self.data[t_name]["tags"][current_windows] = tag_data#[tag_data[l] for l in self.data[t_name]["labels"]]
-                    logger.info("ANNOTATION FOR WINDOWS " + str(current_windows) + " <- OVERWRITTEN!")
-                    self.isUnsave = True
-                    if not self.filename == "":
-                        self.setWindowTitle('*' + self.filename + '-' + __file__)
-                    else:
-                        self.setWindowTitle('* UNTITLED '+ '-' + __file__)
-            else:
-                self.data[t_name]["tags"][current_windows] = tag_data
-                self.listOftaggedWindows.append(current_windows)
-                self.listOftaggedWindows.sort()
-                if not self.filename == "":
-                    self.setWindowTitle('*' + self.filename + '-' + __file__)
-                else:
-                    self.setWindowTitle('* UNTITLED ' + '-' + __file__)
-                logger.info("ANNOTATION FOR WINDOWS " + str(current_windows) + " <-- DONE!")
-
-        self.logWindowsTagged.setText(str(self.listOftaggedWindows))
+        #     logger.debug(json.dumps(tag_data,indent=4))
+        #
+        #     if current_windows in self.listOftaggedWindows:         # if an annotation for the windows already exists
+        #         msg = "An anottation was already given to this window of data for the '" \
+        #               +str(t_name) + "' tab. Do you want to overwrite it?"
+        #         reply = QMessageBox.question(self, 'Confirm Overwrite',msg, QMessageBox.Yes, QMessageBox.No)
+        #         if reply == QMessageBox.Yes:
+        #             self.data[t_name]["tags"][current_windows] = tag_data#[tag_data[l] for l in self.data[t_name]["labels"]]
+        #             logger.info("ANNOTATION FOR WINDOWS " + str(current_windows) + " <- OVERWRITTEN!")
+        #             self.isUnsave = True
+        #             if not self.filename == "":
+        #                 self.setWindowTitle('*' + self.filename + '-' + __file__)
+        #             else:
+        #                 self.setWindowTitle('* UNTITLED '+ '-' + __file__)
+        #     else:
+        #         self.data[t_name]["tags"][current_windows] = tag_data
+        #         self.listOftaggedWindows.append(current_windows)
+        #         self.listOftaggedWindows.sort()
+        #         if not self.filename == "":
+        #             self.setWindowTitle('*' + self.filename + '-' + __file__)
+        #         else:
+        #             self.setWindowTitle('* UNTITLED ' + '-' + __file__)
+        #         logger.info("ANNOTATION FOR WINDOWS " + str(current_windows) + " <-- DONE!")
+        #
+        # self.logWindowsTagged.setText(str(self.listOftaggedWindows))
 
     #Listens to the change in the overlap dropdown list
     def filesComboxChanged(self, i):
@@ -737,6 +776,7 @@ class VideoPlayer(QWidget):
 
             self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(self.bagfileName[:-4]+".avi")))
             self.playButton.setEnabled(True)
+            self.saveButton.setEnabled(True)
             self.previousDWindowButton.setEnabled(True)
             self.nexstDWindowButton.setEnabled(True)
             for b in self.tag_buttons.keys():
@@ -908,16 +948,16 @@ class VideoPlayer(QWidget):
         self.errorMessages(8)
 
     def closeEvent(self,event):
-        pass
-        # if self.isBagLoaded:
-        #     if len(self.listOftaggedWindows) != self.number_of_windows:
-        #         quit_msg = "Some windows were NOT annotated. Are you sure you want to exit the program?"
-        #         reply = QMessageBox.question(self, 'Risk of data loss',
-        #                                     quit_msg, QMessageBox.Yes, QMessageBox.No)
-        #         if reply == QMessageBox.Yes:
-        #             event.accept()
-        #         else:
-        #             event.ignore()
+        if self.isBagLoaded:
+            if self.isUnsave:
+                quit_msg = "Unsaved changes exist! Do you want to save them before exit?"
+                reply = QMessageBox.question(self, 'Risk of data loss',
+                                            quit_msg, QMessageBox.Yes, QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    event.accept()
+                    self.handleSave()
+                else:
+                    event.accept()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
